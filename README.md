@@ -83,6 +83,24 @@ uv run python knn_recommender.py
 uv run python train_spotlight.py
 ```
 
+# Create Content-Based Features
+Extract metadata, content based feautures, tf-ids, ratings, etc.
+
+```bash
+  uv run python extract_metadata.py
+  uv run python create_content_features.py
+  uv run python compare_recommenders.py
+```
+
+### Compare Recomendations
+Compare single recommendation across available methods
+
+```bash
+uv run python knn_recommender.py
+uv run python knn_recommender_sparse.py
+uv run python hybrid_recommender.py
+```
+
 ### Models
 1. Collaborative Filtering
 2. Content Based
