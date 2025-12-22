@@ -1,0 +1,14 @@
+services:
+  book-recommender:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount data directory to allow updates without rebuilding
+      - ./data:/app/data:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    container_name: book-recommender-app

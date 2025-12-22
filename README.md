@@ -59,6 +59,10 @@ uv run python prepare_data.py
 
 # Generate Large Interaction Sample
 uv run python prepare_data.py --min_reads=10 --top_books=50000 --top_users=1000000
+
+# Generate Optimized KNN Rec via Sparse Matrix
+uv run python knn_recommender_sparse.py
+
 ```
 
 This creates:
@@ -83,6 +87,60 @@ uv run python train_spotlight.py
 1. Collaborative Filtering
 2. Content Based
 
+---
+
+## 📱 Streamlit Web App
+
+### Running the App Locally
+
+**Option 1: Using uv (Recommended)**
+```bash
+# Install app dependencies
+uv sync --group app
+
+# Run the app
+uv run --group app streamlit run app/app.py
+```
+
+The app will open in your browser at `http://localhost:8501`
+
+**Option 2: Using Docker**
+```bash
+# Build and run with docker-compose
+docker-compose up --build
+
+# Or build and run manually
+docker build -t book-recommender .
+docker run -p 8501:8501 book-recommender
+```
+
+Access the app at `http://localhost:8501`
+
+### App Features
+
+- 🔍 **Smart Search**: Fuzzy matching to find books even with partial titles
+- 📊 **Filters**: Filter recommendations by rating, publication year, and more
+- 📈 **Similarity Scores**: See how closely each recommendation matches your selection
+- ⚙️ **Customizable**: Adjust the number of recommendations and match sensitivity
+
+### Prerequisites for the App
+
+Make sure you've prepared the data first:
+```bash
+# Download data
+uv run python src/downloader.py
+
+# Serialize data
+uv run python src/serialize_data.py --batch_size=500_000
+
+# Prepare model data
+uv run python prepare_data.py
+
+# Generate KNN model
+uv run python knn_recommender_sparse.py
+```
+
+---
 
 ### Resources
   - [collaborative-filtering-deep-dive](https://www.kaggle.com/code/jhoward/collaborative-filtering-deep-dive)

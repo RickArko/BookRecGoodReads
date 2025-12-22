@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Temporary files
+temp_*.txt
+*.tmp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Data files (large, not needed in container)
+data/*.parquet
+data/*.csv
+data/*.npz
+data/*.gz
+data/pl/
+data/goodreads_books.json.gz
+htmlcov/
+
+# CI/CD
+.github/
+.claude/
+
+# Data files to exclude (uncomment if data is too large)
+# data/*.csv
+# data/*.json
+# data/*.parquet
+
+# Keep only essential data files
+# Exclude raw/intermediate data if needed
