@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 from loguru import logger
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, save_npz
 
 # Default filter parameters
 DEFAULT_MIN_READS = 50
@@ -165,15 +165,33 @@ def create_book_user_matrix_sparse(interactions_lf, output_path):
     cols = df.select(pl.col("user_id").replace_strict(user_to_idx))["user_id"].to_list()
     data = df["rating"].to_list()
     
-    matrix = csr_matrix((data, (rows, cols)), 
+    matrix = csr_matrix((data, (rows, cols)),
                         shape=(len(book_ids), len(user_ids)))
-    
+
     # Save to NPZ format
-    import scipy.sparse as sp
-    sp.save_npz(output_path, matrix)
+    save_npz(output_path, matrix)
     logger.info(f"Sparse matrix saved to {output_path}")
     logger.info(f"Sparse matrix created: {matrix.shape}, density: {matrix.nnz / (matrix.shape[0] * matrix.shape[1]):.4f}")
-    
+
+    # Save the ID mappings as parquet files for easy loading
+    output_dir = Path(output_path).parent
+
+    # Save book_ids (row indices)
+    book_mapping = pl.DataFrame({
+        "matrix_idx": list(range(len(book_ids))),
+        "book_id": book_ids
+    })
+    book_mapping.write_parquet(output_dir / "sparse_matrix_book_mapping.parquet")
+    logger.info(f"Saved book ID mapping: {len(book_ids)} books")
+
+    # Save user_ids (column indices)
+    user_mapping = pl.DataFrame({
+        "matrix_idx": list(range(len(user_ids))),
+        "user_id": user_ids
+    })
+    user_mapping.write_parquet(output_dir / "sparse_matrix_user_mapping.parquet")
+    logger.info(f"Saved user ID mapping: {len(user_ids)} users")
+
     elapsed = time.time() - start
     logger.info(f"Sparse matrix created in {elapsed:.2f}s")
     return matrix
