@@ -14,7 +14,13 @@ TOP_BOOKS = None
 TOP_USERS = 20_000
 
 
-def create_matrix(dfi: pd.DataFrame, dfbooks: pd.DataFrame, top_books=None, top_users=None, min_reads: int =200) -> pd.DataFrame:
+def create_matrix(
+    dfi: pd.DataFrame,
+    dfbooks: pd.DataFrame,
+    top_books=None,
+    top_users=None,
+    min_reads: int = 200,
+) -> pd.DataFrame:
     """Create a matrix of users and books with the number of reads as the value."""
     start = time.time()
     logger.info("Begin Creating Feature Matrix")
@@ -26,7 +32,7 @@ def create_matrix(dfi: pd.DataFrame, dfbooks: pd.DataFrame, top_books=None, top_
     topb = dff.groupby("book_id").agg({"user_id": "nunique", "is_reviewed": "sum", "is_read": "sum", "rating": "mean"})
     topb = topb.join(dfbooks.set_index("book_id")[["title"]])
     # topb = topb.sort_values("is_read", ascending=False).head(top_books)
-    
+
     top_users = 20_000
     topb = topb[topb["is_read"] > min_reads]
 
@@ -34,7 +40,7 @@ def create_matrix(dfi: pd.DataFrame, dfbooks: pd.DataFrame, top_books=None, top_
     dff = dff[dff["book_id"].isin(topb.index)]
 
     # dff = dff[(dff["user_id"] > 0) & (dff["rating"] > 0)]
-    
+
     n_users = dff["user_id"].nunique()
     n_books = dff["book_id"].nunique()
     logger.info(f"Users: {n_users:,d} - Books: {n_books:,d}")

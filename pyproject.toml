@@ -26,6 +26,9 @@ dependencies = [
 [tool.black]
 line-length = 120
 
+[tool.ruff]
+line-length = 120
+
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 

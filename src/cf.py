@@ -13,7 +13,6 @@ FNAME_MATRIX = Path("data").joinpath("matrix.snap.parquet")
 FNAME_RESULTS = Path("data").joinpath("cosine-similarity.txt")
 
 if __name__ == "__main__":
-
     mat = pd.read_parquet(FNAME_MATRIX)
     mat.columns = [int(c) for c in mat.columns]
     csr_matrix = csr_matrix(mat.astype(pd.SparseDtype("float64", 0)).sparse.to_coo())

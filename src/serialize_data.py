@@ -129,7 +129,14 @@ def process_simple_book_features(df):
 
     df = df.drop(drop_cols, axis="columns")
 
-    int_cols = ["book_id", "text_reviews_count", "num_pages", "publication_year", "work_id", "ratings_count"]
+    int_cols = [
+        "book_id",
+        "text_reviews_count",
+        "num_pages",
+        "publication_year",
+        "work_id",
+        "ratings_count",
+    ]
     num_cols = ["average_rating"]
 
     for col in int_cols + num_cols:
@@ -243,10 +250,9 @@ def main(json_path, csv_path, interactions_path, output_path, chunksize=100_000)
 
 
 if __name__ == "__main__":
-
     CHUNK_SIZE = 100_000
     PATH_JSON = Path("data").joinpath("goodreads_books.json.gz")
-    
+
     if not PATH_JSON.exists():
         download_goodreads_data("data")
 

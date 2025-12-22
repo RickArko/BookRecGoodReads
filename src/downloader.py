@@ -32,10 +32,10 @@ def download_file(filename, output_dir=DATA_DIR):
     try:
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
-            total_size = int(r.headers.get('content-length', 0))
+            total_size = int(r.headers.get("content-length", 0))
 
-            with open(output_path, 'wb') as f:
-                with tqdm(total=total_size, unit='B', unit_scale=True, desc=filename) as pbar:
+            with open(output_path, "wb") as f:
+                with tqdm(total=total_size, unit="B", unit_scale=True, desc=filename) as pbar:
                     for chunk in r.iter_content(chunk_size=8192):
                         f.write(chunk)
                         pbar.update(len(chunk))
