@@ -5,17 +5,15 @@ description = "Book Recommendations using UCSD Goodreads Data"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "black",
     "fastparquet",
     "fuzzywuzzy[speedup]",
     "gdown",
     "implicit",
-    "ipykernel",
-    "jupyter",
     "lightgbm",
     "loguru",
     "pandas",
     "plotly",
+    "polars",
     "pyarrow",
     "matplotlib",
     "seaborn",
@@ -38,7 +36,10 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "black",
     "coverage>=7.13.0",
+    "ipykernel",
+    "jupyter",
     "pytest>=9.0.2",
     "ruff>=0.14.10",
 ]

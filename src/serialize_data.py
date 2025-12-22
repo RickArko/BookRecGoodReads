@@ -1,213 +1,120 @@
-import datetime
-import errno
-import gzip
-import json
-import os
+import argparse
 import time
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
-from tqdm.auto import tqdm
+import polars as pl
+from loguru import logger
 from src.downloader import download_goodreads_data
 
-README = """Module to process downloaded goodreads json files and save in dataframe format.
+README = """Module to process downloaded goodreads json files and save in parquet format.
 
-    Many of the JSON files are extemely large, to save RAM processing
-    will be done in chunks and appended to processed output files that
-    can be used for modelling.
+    Uses Polars lazy dataframes for efficient streaming processing of large JSON files.
+    This approach is significantly faster than pandas and uses less memory through
+    lazy evaluation and streaming writes.
 
     General Outline:
     ----------------
-        1. Read JSON into df_chunks object.
-        2. Iterate over df_chunks loading chunksize (100k) rows of data into memory at a time.
-        3. Apply desired filtering/processing/transformations.
-        4. Append chunk of processed data to .csv
-        5. Save .csv data in parquet format
+        1. Scan JSON with lazy reader (pl.scan_ndjson)
+        2. Apply transformations using lazy operations
+        3. Stream results to parquet files with sink_parquet
+        4. No chunking needed - Polars handles large files efficiently
 
     Outputs:
     -------
         goodreads_interactions.snap.parquet
         titles.snap.parquet
-
-        books_simple_features.csv - Book numeric feature data
-        books_extra_features.csv  - Book string feature data
+        books_simple_features.snap.parquet
+        books_extra_features.snap.parquet
 """
 
 
-def load_json_to_df(path, head=10_000):
-    """load top head lines of data from json path
-    and return pandas.DataFrame
+def save_book_features(json_path, output_csv, output_dir: str = "data"):
+    """Extract book features and save to parquet files.
+
+    Args:
+        json_path: Path to goodreads_books.json.gz file (str or Path)
+        output_csv: Path for CSV output (str or Path, used to derive parquet name)
+        output_dir: Directory to save output files (str or Path)
     """
-    count = 0
-    data = []
-    with gzip.open(path) as f:
-        for l in f:
-            d = json.loads(l)
-            count += 1
-            data.append(d)
+    # Convert all inputs to Path objects for consistent handling
+    json_path = Path(json_path)
+    output_csv = Path(output_csv)
+    output_dir = Path(output_dir)
 
-            if (head is not None) and (count > head):
-                break
-    return pd.DataFrame(data)
+    logger.info(f"Processing book features from {json_path}")
+    start = time.time()
 
-
-def remove_file_if_exists(filename):
-    """Remove file if present otherwise pass"""
-    try:
-        os.remove(filename)
-        print(f"removed {filename}")
-    except OSError as e:
-        if e.errno != errno.ENOENT:  # errno.ENOENT = no such file or directory
-            raise  # re-raise exception if a different error occurred
-
-
-def extract_more_book_features(df):
-    """Extracts desired features from json
-
-    adds columns:
-        ('title', 'title_without_series', 'language_code',
-         'authors', 'edition_information', 'country_code'
-        )
-    returns:
-        pandas.DataFrame
-    """
-    cols = [
+    # Define columns we want to extract
+    extra_feature_cols = [
         "book_id",
-        "popular_shelves",
         "description",
         "format",
-        "series",
         "title",
         "title_without_series",
         "language_code",
         "authors",
-        "edition_information",
         "country_code",
     ]
 
-    dict(df[cols].dtypes)
+    # Scan the JSON file lazily
+    df = pl.scan_ndjson(str(json_path))
 
-    return df[cols].astype(
-        {
-            "book_id": "int64",
-            "popular_shelves": "object",
-            "description": "object",
-            "format": "object",
-            "series": "object",
-            "title": "object",
-            "title_without_series": "object",
-            "language_code": "object",
-            "authors": "object",
-            "edition_information": "object",
-            "country_code": "object",
-        }
-    )
-
-
-def process_simple_book_features(df):
-    """Processes 'simple' (numeric) Book Features
-    inputs:
-        pandas.DataFrame (book features)
-    returns:
-        pandas.DataFrame (numeric features only)
-    """
-    df["is_ebook"] = np.where(df["is_ebook"] == "true", 1, 0)
-    drop_cols = [
-        "isbn",
-        "asin",
-        "kindle_asin",
-        "link",
-        "publisher",
-        "isbn13",
-        "publication_day",
-        "publication_month",
-        "edition_information",
-        "url",
-        "image_url",
-    ]
-
-    df = df.drop(drop_cols, axis="columns")
-
-    int_cols = [
-        "book_id",
-        "text_reviews_count",
-        "num_pages",
-        "publication_year",
-        "work_id",
-        "ratings_count",
-    ]
-    num_cols = ["average_rating"]
-
-    for col in int_cols + num_cols:
-        try:
-            df[col] = pd.to_numeric(df[col])
-            if col in int_cols:
-                try:
-                    df[col] = df[col].astype(int)
-                except Exception as e:
-                    pass
-                    # print(f'unable to convert {col} to int error: {e}')
-        except Exception as e:
-            pass
-            # print(f'unable to convert column: {col} error: {e}')
-    df = df.select_dtypes(include=["int", "float", "bool"])
-    return df
-
-
-def save_book_features(large_json: str, processed_csv: str, chunksize: int = 100_000):
-    """Read large json file in chunks and save to parquet file."""
-    chunks = pd.read_json(large_json, lines=True, chunksize=100_000)
-    start = time.time()
-
-    all_chunks = []
-    for i, df_chunk in tqdm(enumerate(chunks)):
-        dffeats = extract_more_book_features(df_chunk)
-        print(f"iteration {i} clean_shape: {dffeats.shape}, original: {df_chunk.shape}")
-        all_chunks.append(dffeats)
-
-    # Concatenate all chunks
-    dfout = pd.concat(all_chunks, ignore_index=True)
+    # Extract and process extra features
+    logger.info("Processing extra features...")
+    # Use .stem to get filename without extension, then add new suffix
+    parquet_filename = output_csv.stem + ".snap.parquet"
+    parquet_path = output_dir / parquet_filename
+    df.select(extra_feature_cols).sink_parquet(str(parquet_path))
 
     # Save titles parquet
-    dfout[["book_id", "title", "title_without_series"]].to_parquet("data/titles.snap.parquet")
+    logger.info("Saving titles parquet...")
+    titles_path = output_dir / "titles.snap.parquet"
+    (
+        pl.scan_parquet(str(parquet_path))
+        .select(["book_id", "title", "title_without_series"])
+        .sink_parquet(str(titles_path))
+    )
 
-    # Save full features parquet
-    column_order = [
-        "book_id",
-        "description",
-        "format",
-        "title",
-        "title_without_series",
-        "language_code",
-        "authors",
-        "country_code",
-    ]
-    dfout[column_order].to_parquet(processed_csv.replace("csv", "snap.parquet"))
-
-    # Optionally save CSV with proper quoting
-    dfout[column_order].to_csv(processed_csv, index=False, quoting=1)  # QUOTE_ALL
+    # Try to save CSV if possible (may fail with nested data)
+    try:
+        logger.info("Attempting to save CSV (may be skipped if data is nested)...")
+        csv_path = output_dir / output_csv.name
+        # Convert nested columns to strings for CSV compatibility
+        (
+            pl.scan_parquet(str(parquet_path))
+            .with_columns([
+                pl.col(col).cast(pl.Utf8, strict=False)
+                for col in ["authors", "description"]
+            ])
+            .sink_csv(str(csv_path), quote_style="necessary")
+        )
+        logger.info(f"CSV saved successfully to {csv_path}")
+    except Exception as e:
+        logger.warning(f"Skipping CSV output (nested data not supported in CSV): {e}")
+        logger.info("Parquet file is available and recommended for nested data")
 
     time_seconds = time.time() - start
-    print(f"Finished processing {large_json} and saving output to {processed_csv} in {time_seconds:.1f} seconds")
+    logger.info(f"Finished processing extra features in {time_seconds:.1f} seconds")
 
 
-def save_simple_book_features(large_json: str, output_file: str, chunksize: int = 100_000):
-    # Process and Store simple (numeric) book features
-    chunks = pd.read_json(large_json, lines=True, chunksize=100_000)
+def save_simple_book_features(json_path, output_file, output_dir: str = "data"):
+    """Extract and process simple (numeric) book features.
+
+    Args:
+        json_path: Path to goodreads_books.json.gz file (str or Path)
+        output_file: Path for output CSV (str or Path, used to derive parquet name)
+        output_dir: Directory to save output files (str or Path)
+    """
+    # Convert all inputs to Path objects for consistent handling
+    json_path = Path(json_path)
+    output_file = Path(output_file)
+    output_dir = Path(output_dir)
+
+    logger.info(f"Processing simple book features from {json_path}")
     start = time.time()
 
-    all_chunks = []
-    for i, df_chunk in tqdm(enumerate(chunks)):
-        dfclean = process_simple_book_features(df_chunk)
-        print(f"iteration {i} clean_shape: {dfclean.shape}, original: {df_chunk.shape}")
-        all_chunks.append(dfclean)
-
-    # Concatenate all chunks
-    dfout = pd.concat(all_chunks, ignore_index=True)
-
-    # Save parquet
-    column_order = [
+    # Define columns to keep
+    keep_cols = [
         "book_id",
         "work_id",
         "publication_year",
@@ -217,46 +124,127 @@ def save_simple_book_features(large_json: str, output_file: str, chunksize: int 
         "text_reviews_count",
         "average_rating",
     ]
-    dfout[column_order].to_parquet(output_file.replace("csv", "snap.parquet"))
 
-    # Optionally save CSV
-    dfout[column_order].to_csv(output_file, index=False)
+    # Scan and process with lazy operations
+    logger.info("Reading and transforming data...")
+    df = (
+        pl.scan_ndjson(str(json_path))
+        .with_columns([
+            # Convert is_ebook to binary
+            pl.when(pl.col("is_ebook") == "true")
+            .then(1)
+            .otherwise(0)
+            .alias("is_ebook"),
+            # Cast numeric columns
+            pl.col("book_id").cast(pl.Int64, strict=False),
+            pl.col("work_id").cast(pl.Int64, strict=False),
+            pl.col("publication_year").cast(pl.Int64, strict=False),
+            pl.col("num_pages").cast(pl.Int64, strict=False),
+            pl.col("ratings_count").cast(pl.Int64, strict=False),
+            pl.col("text_reviews_count").cast(pl.Int64, strict=False),
+            pl.col("average_rating").cast(pl.Float64, strict=False),
+        ])
+        .select(keep_cols)
+    )
+
+    # Stream to parquet
+    logger.info("Writing parquet...")
+    # Use .stem to get filename without extension, then add new suffix
+    parquet_filename = output_file.stem + ".snap.parquet"
+    parquet_path = output_dir / parquet_filename
+    df.sink_parquet(str(parquet_path))
+
+    # Optionally save CSV (numeric features should be compatible)
+    try:
+        logger.info("Writing CSV...")
+        csv_path = output_dir / output_file.name
+        pl.scan_parquet(str(parquet_path)).sink_csv(str(csv_path))
+        logger.info(f"CSV saved successfully to {csv_path}")
+    except Exception as e:
+        logger.warning(f"Skipping CSV output: {e}")
+        logger.info("Parquet file is available")
 
     time_seconds = time.time() - start
-    print(f"Finished processing {large_json} and saving output to {output_file} in {time_seconds:.1f} seconds")
-    return
+    logger.info(f"Finished processing simple features in {time_seconds:.1f} seconds")
 
 
-def save_interactions(input_path):
-    dfi = pd.read_csv(input_path)
-    dfi.to_parquet(input_path.replace("csv", "snap.parquet"))
-    return
-
-
-def main(json_path, csv_path, interactions_path, output_path, chunksize=100_000):
-    """Serialze DataFrames to parquet files.
+def save_interactions(input_path, output_dir: str = "data"):
+    """Convert interactions CSV to parquet format.
 
     Args:
-        json_path (_type_): _description_
-        csv_path (_type_): _description_
-        interactions_path (_type_): _description_
-        output_path (_type_): _description_
-        chunksize (_type_, optional): _description_. Defaults to 100_000.
+        input_path: Path to goodreads_interactions.csv (str or Path)
+        output_dir: Directory to save output files (str or Path)
     """
-    save_book_features(json_path, csv_path, chunksize=chunksize)
-    save_simple_book_features(json_path, output_path, chunksize=chunksize)
-    save_interactions(interactions_path)
-    return
+    # Convert all inputs to Path objects for consistent handling
+    input_path = Path(input_path)
+    output_dir = Path(output_dir)
+
+    logger.info(f"Converting interactions to parquet: {input_path}")
+    start = time.time()
+
+    # Use lazy scan and sink for memory efficiency
+    # Use .stem to get filename without extension, then add new suffix
+    parquet_filename = input_path.stem + ".snap.parquet"
+    output_path = output_dir / parquet_filename
+    pl.scan_csv(str(input_path)).sink_parquet(str(output_path))
+
+    time_seconds = time.time() - start
+    logger.info(f"Finished converting interactions in {time_seconds:.1f} seconds")
+
+
+def main(json_path, csv_path, interactions_path, output_path, output_dir: str = "data"):
+    """Serialize DataFrames to parquet files using Polars.
+
+    Args:
+        json_path: Path to goodreads_books.json.gz
+        csv_path: Path for books_extra_features.csv output
+        interactions_path: Path to goodreads_interactions.csv
+        output_path: Path for books_simple_features.csv output
+        output_dir: Directory to save all output files
+    """
+    logger.info("Starting data serialization with Polars...")
+
+    # Start timing the entire process
+    overall_start = time.time()
+
+    # Create output directory if it doesn't exist
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+
+    save_book_features(json_path, csv_path, output_dir)
+    save_simple_book_features(json_path, output_path, output_dir)
+    save_interactions(interactions_path, output_dir)
+
+    # Log total runtime
+    total_runtime = time.time() - overall_start
+    logger.info(f"All data serialization complete! Total runtime: {total_runtime:.2f} seconds")
 
 
 if __name__ == "__main__":
-    CHUNK_SIZE = 100_000
+    parser = argparse.ArgumentParser(description="Serialize GoodReads data to parquet using Polars")
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=10_000_000,
+        help="Batch size for processing (default: 10,000,000)",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="data",
+        help="Output directory for parquet files (default: data)",
+    )
+    args = parser.parse_args()
+
+    logger.info(f"Using batch_size: {args.batch_size:,}")
+
     PATH_JSON = Path("data").joinpath("goodreads_books.json.gz")
 
     if not PATH_JSON.exists():
+        logger.info("Data files not found, downloading...")
         download_goodreads_data("data")
 
-    # Read book features and save to csv/parquet
+    # Output paths
     CSV_PATH = Path("data").joinpath("books_extra_features.csv")
     OUTPUT_PATH = Path("data").joinpath("books_simple_features.csv")
     INTERACTIONS_PATH = Path("data").joinpath("goodreads_interactions.csv")
@@ -266,5 +254,5 @@ if __name__ == "__main__":
         csv_path=CSV_PATH,
         interactions_path=INTERACTIONS_PATH,
         output_path=OUTPUT_PATH,
-        chunksize=CHUNK_SIZE,
+        output_dir=args.output_dir,
     )
