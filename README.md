@@ -39,9 +39,11 @@ uv run python -m ipykernel install --user --name=book-rec
 ```
 
 ### Data Preparation
-Download and process GoodReads data:
+Run the commands below to download, and process all of the features data from scratch for the first time **__this will only be required once for a new developer setting up the project __ (expected runtime ~15minutes)**.
+
 ```bash
 # This will download the data from Google Drive and create parquet files
+uv run python src/downloader.py 
 uv run python src/serialize_data.py
 ```
 

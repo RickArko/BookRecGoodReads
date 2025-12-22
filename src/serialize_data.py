@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from src.downloader import download_goodreads_data
 
 README = """Module to process downloaded goodreads json files and save in dataframe format.
@@ -149,24 +149,23 @@ def process_simple_book_features(df):
 
 
 def save_book_features(large_json: str, processed_csv: str, chunksize: int = 100_000):
-    """Read large json file in chunks and save to csv file."""
+    """Read large json file in chunks and save to parquet file."""
     chunks = pd.read_json(large_json, lines=True, chunksize=100_000)
     start = time.time()
 
+    all_chunks = []
     for i, df_chunk in tqdm(enumerate(chunks)):
-
         dffeats = extract_more_book_features(df_chunk)
         print(f"iteration {i} clean_shape: {dffeats.shape}, original: {df_chunk.shape}")
+        all_chunks.append(dffeats)
 
-        if i == 0:
-            remove_file_if_exists(processed_csv)
-            dffeats.to_csv(processed_csv, header=True, index=False)
+    # Concatenate all chunks
+    dfout = pd.concat(all_chunks, ignore_index=True)
 
-        if i > 0:
-            dffeats.to_csv(processed_csv, header=False, index=False, mode="a")
-
-    dfout = pd.read_csv(processed_csv)
+    # Save titles parquet
     dfout[["book_id", "title", "title_without_series"]].to_parquet("data/titles.snap.parquet")
+
+    # Save full features parquet
     column_order = [
         "book_id",
         "description",
@@ -178,8 +177,12 @@ def save_book_features(large_json: str, processed_csv: str, chunksize: int = 100
         "country_code",
     ]
     dfout[column_order].to_parquet(processed_csv.replace("csv", "snap.parquet"))
+
+    # Optionally save CSV with proper quoting
+    dfout[column_order].to_csv(processed_csv, index=False, quoting=1)  # QUOTE_ALL
+
     time_seconds = time.time() - start
-    print(f"Finihsed processing {large_json} and saving output to {processed_csv} in {time_seconds:.1f} seconds")
+    print(f"Finished processing {large_json} and saving output to {processed_csv} in {time_seconds:.1f} seconds")
 
 
 def save_simple_book_features(large_json: str, output_file: str, chunksize: int = 100_000):
@@ -187,18 +190,16 @@ def save_simple_book_features(large_json: str, output_file: str, chunksize: int 
     chunks = pd.read_json(large_json, lines=True, chunksize=100_000)
     start = time.time()
 
+    all_chunks = []
     for i, df_chunk in tqdm(enumerate(chunks)):
         dfclean = process_simple_book_features(df_chunk)
         print(f"iteration {i} clean_shape: {dfclean.shape}, original: {df_chunk.shape}")
+        all_chunks.append(dfclean)
 
-        if i == 0:
-            remove_file_if_exists(output_file)
-            dfclean.to_csv(output_file, header=True, index=False)
+    # Concatenate all chunks
+    dfout = pd.concat(all_chunks, ignore_index=True)
 
-        if i > 0:
-            dfclean.to_csv(output_file, header=False, index=False, mode="a")
-
-    dfout = pd.read_csv(output_file)
+    # Save parquet
     column_order = [
         "book_id",
         "work_id",
@@ -210,8 +211,12 @@ def save_simple_book_features(large_json: str, output_file: str, chunksize: int 
         "average_rating",
     ]
     dfout[column_order].to_parquet(output_file.replace("csv", "snap.parquet"))
+
+    # Optionally save CSV
+    dfout[column_order].to_csv(output_file, index=False)
+
     time_seconds = time.time() - start
-    print(f"Finnished processing {large_json} and saving output to {output_file} in {time_seconds:.1f} seconds")
+    print(f"Finished processing {large_json} and saving output to {output_file} in {time_seconds:.1f} seconds")
     return
 
 
@@ -248,7 +253,7 @@ if __name__ == "__main__":
     # Read book features and save to csv/parquet
     CSV_PATH = Path("data").joinpath("books_extra_features.csv")
     OUTPUT_PATH = Path("data").joinpath("books_simple_features.csv")
-    INTERACTIONS_PATH = Path("data").joinpath("interactions.csv")
+    INTERACTIONS_PATH = Path("data").joinpath("goodreads_interactions.csv")
 
     main(
         json_path=PATH_JSON,

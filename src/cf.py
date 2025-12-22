@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from implicit.nearest_neighbours import CosineRecommender
 from scipy.sparse import csr_matrix
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 FNAME_TITLES = Path("data").joinpath("titles.snap.parquet")
 FNAME_MATRIX = Path("data").joinpath("matrix.snap.parquet")
