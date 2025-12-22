@@ -116,8 +116,7 @@ def fuzzy_matching(title_to_idx, query_book, threshold=60, verbose=True):
 class SparseKnnRecommender:
     """Item-based collaborative filtering recommender using sparse matrices."""
 
-    def __init__(self, sparse_matrix, book_ids, title_to_idx, idx_to_title,
-                 metric="cosine", n_neighbors=20):
+    def __init__(self, sparse_matrix, book_ids, title_to_idx, idx_to_title, metric="cosine", n_neighbors=20):
         """Initialize recommender.
 
         Args:
@@ -136,7 +135,7 @@ class SparseKnnRecommender:
             metric=metric,
             algorithm="brute",  # Required for sparse matrices with cosine
             n_neighbors=n_neighbors,
-            n_jobs=-1
+            n_jobs=-1,
         )
 
     def fit(self):
@@ -170,7 +169,7 @@ class SparseKnnRecommender:
         # Find neighbors
         distances, indices = self.model.kneighbors(
             book_vector,
-            n_neighbors=n_recommendations + 1  # +1 to exclude the query book itself
+            n_neighbors=n_recommendations + 1,  # +1 to exclude the query book itself
         )
 
         # Format results (skip first one as it's the query book)
@@ -185,9 +184,9 @@ class SparseKnnRecommender:
 
     def print_recommendations(self, book_name, n_recommendations=5, threshold=60):
         """Print recommendations in a readable format."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Recommendations for: {book_name}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         recommendations = self.recommend(book_name, n_recommendations, threshold)
 
@@ -205,9 +204,9 @@ def main():
     """Main execution function."""
     overall_start = time.time()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Book Recommendation System - Sparse KNN")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
     # Check if sparse matrix exists
     sparse_path = Path("data/book_user_matrix_sparse.npz")
@@ -222,20 +221,13 @@ def main():
     title_to_idx, idx_to_title, book_id_to_title = create_title_mapping(book_ids)
 
     # Initialize and fit recommender
-    recommender = SparseKnnRecommender(
-        matrix,
-        book_ids,
-        title_to_idx,
-        idx_to_title,
-        metric="cosine",
-        n_neighbors=20
-    )
+    recommender = SparseKnnRecommender(matrix, book_ids, title_to_idx, idx_to_title, metric="cosine", n_neighbors=20)
     recommender.fit()
 
     # Test recommendations
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Recommendations")
-    print("="*60)
+    print("=" * 60)
 
     test_books = [
         "Harry Potter",
@@ -248,9 +240,9 @@ def main():
         print()
 
     total_time = time.time() - overall_start
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Total execution time: {total_time:.2f}s")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

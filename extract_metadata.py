@@ -64,9 +64,7 @@ def extract_metadata(
             shelves = book.get("popular_shelves", [])
 
             # Sort by count and take top N
-            shelves_sorted = sorted(
-                shelves, key=lambda x: int(x.get("count", 0)), reverse=True
-            )[:top_n_shelves]
+            shelves_sorted = sorted(shelves, key=lambda x: int(x.get("count", 0)), reverse=True)[:top_n_shelves]
 
             shelf_names = [s["name"] for s in shelves_sorted if s.get("name")]
             shelf_counts = [int(s["count"]) for s in shelves_sorted if s.get("count")]
@@ -91,7 +89,9 @@ def extract_metadata(
             metadata_records.append(record)
 
     logger.info(f"Total books processed: {total_processed:,}")
-    logger.info(f"Metadata extracted for: {found_count:,} / {len(matrix_book_ids):,} books ({100*found_count/len(matrix_book_ids):.1f}%)")
+    logger.info(
+        f"Metadata extracted for: {found_count:,} / {len(matrix_book_ids):,} books ({100 * found_count / len(matrix_book_ids):.1f}%)"
+    )
 
     # Convert to DataFrame and save
     logger.info("Creating DataFrame...")
@@ -104,8 +104,12 @@ def extract_metadata(
 
     # Show statistics
     logger.info("\nMetadata Statistics:")
-    logger.info(f"  Books with authors: {df.filter(pl.col('num_authors') > 0).height:,} ({100*df.filter(pl.col('num_authors') > 0).height/len(df):.1f}%)")
-    logger.info(f"  Books with shelves: {df.filter(pl.col('num_shelves') > 0).height:,} ({100*df.filter(pl.col('num_shelves') > 0).height/len(df):.1f}%)")
+    logger.info(
+        f"  Books with authors: {df.filter(pl.col('num_authors') > 0).height:,} ({100 * df.filter(pl.col('num_authors') > 0).height / len(df):.1f}%)"
+    )
+    logger.info(
+        f"  Books with shelves: {df.filter(pl.col('num_shelves') > 0).height:,} ({100 * df.filter(pl.col('num_shelves') > 0).height / len(df):.1f}%)"
+    )
     logger.info(f"  Average shelves per book: {df['num_shelves'].mean():.2f}")
     logger.info(f"  Average authors per book: {df['num_authors'].mean():.2f}")
 
@@ -116,6 +120,7 @@ def extract_metadata(
             all_shelves.extend(shelves_str.split(","))
 
     from collections import Counter
+
     shelf_counts = Counter(all_shelves)
     logger.info(f"\nTop 20 most common shelves:")
     for shelf, count in shelf_counts.most_common(20):

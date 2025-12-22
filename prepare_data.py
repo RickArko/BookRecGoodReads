@@ -52,10 +52,8 @@ def active_filter_optimized(
     popular_books = book_counts.filter(pl.col("count") > -min_reads).select("book_id")
 
     # Combine filtering in one operation
-    filtered = (
-        interactions_lf
-        .join(active_users, on="user_id", how="inner")
-        .join(popular_books, on="book_id", how="inner")
+    filtered = interactions_lf.join(active_users, on="user_id", how="inner").join(
+        popular_books, on="book_id", how="inner"
     )
 
     return filtered
@@ -77,8 +75,7 @@ def get_top_x_users(
     logger.info(f"Getting top {top_x:,} users")
 
     return (
-        interactions_lf
-        .group_by("user_id")
+        interactions_lf.group_by("user_id")
         .agg(pl.len().alias("count"))
         .sort("count", descending=True)
         .head(top_x)
@@ -102,8 +99,7 @@ def get_top_x_books(
     logger.info(f"Getting top {top_x:,} books")
 
     return (
-        interactions_lf
-        .group_by("book_id")
+        interactions_lf.group_by("book_id")
         .agg(pl.len().alias("count"))
         .sort("count", descending=True)
         .head(top_x)
@@ -146,49 +142,45 @@ def create_book_user_matrix(
 
     return matrix
 
+
 def create_book_user_matrix_sparse(interactions_lf, output_path):
     """Create a sparse book-user rating matrix instead of dense pivot."""
     logger.info("Creating sparse book-user matrix")
     start = time.time()
-    
+
     df = interactions_lf.select(["book_id", "user_id", "rating"]).collect()
-    
+
     # Create mappings for indices
     book_ids = df["book_id"].unique().sort().to_list()
     user_ids = df["user_id"].unique().sort().to_list()
-    
+
     book_to_idx = {bid: i for i, bid in enumerate(book_ids)}
     user_to_idx = {uid: i for i, uid in enumerate(user_ids)}
-    
+
     # Create sparse matrix using replace_strict for better performance
     rows = df.select(pl.col("book_id").replace_strict(book_to_idx))["book_id"].to_list()
     cols = df.select(pl.col("user_id").replace_strict(user_to_idx))["user_id"].to_list()
     data = df["rating"].to_list()
-    
-    matrix = csr_matrix((data, (rows, cols)),
-                        shape=(len(book_ids), len(user_ids)))
+
+    matrix = csr_matrix((data, (rows, cols)), shape=(len(book_ids), len(user_ids)))
 
     # Save to NPZ format
     save_npz(output_path, matrix)
     logger.info(f"Sparse matrix saved to {output_path}")
-    logger.info(f"Sparse matrix created: {matrix.shape}, density: {matrix.nnz / (matrix.shape[0] * matrix.shape[1]):.4f}")
+    logger.info(
+        f"Sparse matrix created: {matrix.shape}, density: {matrix.nnz / (matrix.shape[0] * matrix.shape[1]):.4f}"
+    )
 
     # Save the ID mappings as parquet files for easy loading
     output_dir = Path(output_path).parent
 
     # Save book_ids (row indices)
-    book_mapping = pl.DataFrame({
-        "matrix_idx": list(range(len(book_ids))),
-        "book_id": book_ids
-    })
+    book_mapping = pl.DataFrame({"matrix_idx": list(range(len(book_ids))), "book_id": book_ids})
     book_mapping.write_parquet(output_dir / "sparse_matrix_book_mapping.parquet")
     logger.info(f"Saved book ID mapping: {len(book_ids)} books")
 
     # Save user_ids (column indices)
-    user_mapping = pl.DataFrame({
-        "matrix_idx": list(range(len(user_ids))),
-        "user_id": user_ids
-    })
+    user_mapping = pl.DataFrame({"matrix_idx": list(range(len(user_ids))), "user_id": user_ids})
     user_mapping.write_parquet(output_dir / "sparse_matrix_user_mapping.parquet")
     logger.info(f"Saved user ID mapping: {len(user_ids)} users")
 
@@ -223,17 +215,17 @@ def main(
     logger.info("Starting model data preparation with Polars")
     logger.info(f"Parameters: min_reads={min_reads}, top_books={top_books:,}, top_users={top_users:,}")
     if sample < 1.0:
-        logger.info(f"Using {sample*100:.1f}% sample of data for testing")
+        logger.info(f"Using {sample * 100:.1f}% sample of data for testing")
     logger.info("=" * 60)
 
     # Load data with lazy frames
     logger.info("Loading data files...")
     interactions_lf = pl.scan_parquet("data/goodreads_interactions.snap.parquet")
     titles_lf = pl.scan_parquet("data/titles.snap.parquet")
-    
+
     # Apply sampling if specified
     if sample < 1.0:
-        logger.info(f"Sampling {sample*100:.1f}% of interactions for testing...")
+        logger.info(f"Sampling {sample * 100:.1f}% of interactions for testing...")
         interactions_lf = interactions_lf.sample(fraction=sample, seed=42)
 
     # Cast once at load time if needed
@@ -248,10 +240,8 @@ def main(
 
     # Filter to top users and books
     logger.info("Filtering to top users and books...")
-    final_interactions = (
-        filtered_interactions
-        .join(top_user_ids, on="user_id", how="inner")
-        .join(top_book_ids, on="book_id", how="inner")
+    final_interactions = filtered_interactions.join(top_user_ids, on="user_id", how="inner").join(
+        top_book_ids, on="book_id", how="inner"
     )
 
     # Save filtered interactions
@@ -263,10 +253,7 @@ def main(
     # Get filtered titles
     logger.info("Filtering titles...")
     # Join using the already-matched top_book_ids (which are i64 integers)
-    filtered_titles = (
-        titles_lf
-        .join(top_book_ids, on="book_id", how="inner")
-    )
+    filtered_titles = titles_lf.join(top_book_ids, on="book_id", how="inner")
     titles_output = output_dir / "filtered_titles.parquet"
     filtered_titles.sink_parquet(str(titles_output))
     logger.info(f"Saved to {titles_output}")
@@ -275,13 +262,13 @@ def main(
     logger.info("Creating sparse book-user rating matrix...")
     sparse_matrix_output = output_dir / "book_user_matrix_sparse.npz"
     sparse_matrix = create_book_user_matrix_sparse(final_interactions, str(sparse_matrix_output))
-    
+
     # Optionally create dense matrix for comparison
     if compare_dense:
         logger.info("Creating dense book-user rating matrix for comparison...")
         matrix_output = output_dir / "book_user_matrix.parquet"
         matrix = create_book_user_matrix(final_interactions, str(matrix_output))
-        
+
         # Compare matrix representations
         logger.info("=" * 60)
         logger.info("Matrix Comparison:")
@@ -289,13 +276,17 @@ def main(
         logger.info(f"  Dense matrix size: {matrix.nbytes / (1024**2):.2f} MB")
         logger.info(f"  Sparse matrix shape: {sparse_matrix.shape}")
         logger.info(f"  Sparse matrix nnz (non-zero): {sparse_matrix.nnz:,}")
-        logger.info(f"  Sparse matrix density: {sparse_matrix.nnz / (sparse_matrix.shape[0] * sparse_matrix.shape[1]):.4f}")
-        sparse_size = (sparse_matrix.data.nbytes + sparse_matrix.indices.nbytes + sparse_matrix.indptr.nbytes) / (1024**2)
+        logger.info(
+            f"  Sparse matrix density: {sparse_matrix.nnz / (sparse_matrix.shape[0] * sparse_matrix.shape[1]):.4f}"
+        )
+        sparse_size = (sparse_matrix.data.nbytes + sparse_matrix.indices.nbytes + sparse_matrix.indptr.nbytes) / (
+            1024**2
+        )
         logger.info(f"  Sparse matrix memory: {sparse_size:.2f} MB")
         logger.info(f"  Memory savings: {(1 - sparse_size / (matrix.nbytes / (1024**2))) * 100:.1f}%")
     else:
         logger.info("Sparse matrix is primary format (use --compare_dense to also create dense matrix)")
-    
+
     # Summary statistics
     logger.info("=" * 60)
     logger.info("Summary:")
@@ -313,9 +304,7 @@ def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Prepare model data using Polars lazy dataframes"
-    )
+    parser = argparse.ArgumentParser(description="Prepare model data using Polars lazy dataframes")
     parser.add_argument(
         "--min_reads",
         type=int,

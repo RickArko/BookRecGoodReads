@@ -82,10 +82,7 @@ def save_book_features(json_path, output_csv, output_dir: str = "data"):
         # Convert nested columns to strings for CSV compatibility
         (
             pl.scan_parquet(str(parquet_path))
-            .with_columns([
-                pl.col(col).cast(pl.Utf8, strict=False)
-                for col in ["authors", "description"]
-            ])
+            .with_columns([pl.col(col).cast(pl.Utf8, strict=False) for col in ["authors", "description"]])
             .sink_csv(str(csv_path), quote_style="necessary")
         )
         logger.info(f"CSV saved successfully to {csv_path}")
@@ -129,21 +126,20 @@ def save_simple_book_features(json_path, output_file, output_dir: str = "data"):
     logger.info("Reading and transforming data...")
     df = (
         pl.scan_ndjson(str(json_path))
-        .with_columns([
-            # Convert is_ebook to binary
-            pl.when(pl.col("is_ebook") == "true")
-            .then(1)
-            .otherwise(0)
-            .alias("is_ebook"),
-            # Cast numeric columns
-            pl.col("book_id").cast(pl.Int64, strict=False),
-            pl.col("work_id").cast(pl.Int64, strict=False),
-            pl.col("publication_year").cast(pl.Int64, strict=False),
-            pl.col("num_pages").cast(pl.Int64, strict=False),
-            pl.col("ratings_count").cast(pl.Int64, strict=False),
-            pl.col("text_reviews_count").cast(pl.Int64, strict=False),
-            pl.col("average_rating").cast(pl.Float64, strict=False),
-        ])
+        .with_columns(
+            [
+                # Convert is_ebook to binary
+                pl.when(pl.col("is_ebook") == "true").then(1).otherwise(0).alias("is_ebook"),
+                # Cast numeric columns
+                pl.col("book_id").cast(pl.Int64, strict=False),
+                pl.col("work_id").cast(pl.Int64, strict=False),
+                pl.col("publication_year").cast(pl.Int64, strict=False),
+                pl.col("num_pages").cast(pl.Int64, strict=False),
+                pl.col("ratings_count").cast(pl.Int64, strict=False),
+                pl.col("text_reviews_count").cast(pl.Int64, strict=False),
+                pl.col("average_rating").cast(pl.Float64, strict=False),
+            ]
+        )
         .select(keep_cols)
     )
 
@@ -209,6 +205,7 @@ def main(json_path, csv_path, interactions_path, output_path, output_dir: str = 
 
     # Create output directory if it doesn't exist
     import os
+
     os.makedirs(output_dir, exist_ok=True)
 
     save_book_features(json_path, csv_path, output_dir)

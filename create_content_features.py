@@ -38,11 +38,11 @@ def create_content_features(
     logger.info(f"Matrix has {len(matrix_book_ids):,} books")
 
     # Create mapping from book_id to metadata
-    metadata_dict = {
-        row["book_id"]: row for row in metadata.iter_rows(named=True)
-    }
+    metadata_dict = {row["book_id"]: row for row in metadata.iter_rows(named=True)}
 
-    logger.info(f"Books with metadata: {len(metadata_dict):,} / {len(matrix_book_ids):,} ({100*len(metadata_dict)/len(matrix_book_ids):.1f}%)")
+    logger.info(
+        f"Books with metadata: {len(metadata_dict):,} / {len(matrix_book_ids):,} ({100 * len(metadata_dict) / len(matrix_book_ids):.1f}%)"
+    )
 
     # ==================================================================
     # 1. CREATE SHELF (GENRE) FEATURES USING TF-IDF
@@ -118,7 +118,9 @@ def create_content_features(
             features = [
                 np.log1p(meta.get("ratings_count", 0)),  # Log of ratings count
                 meta.get("average_rating", 0) / 5.0,  # Normalized rating
-                (meta.get("publication_year", 0) - 1900) / 100.0 if meta.get("publication_year", 0) > 0 else 0,  # Normalized year
+                (meta.get("publication_year", 0) - 1900) / 100.0
+                if meta.get("publication_year", 0) > 0
+                else 0,  # Normalized year
                 np.log1p(meta.get("num_pages", 0)) / 10.0,  # Log of pages
             ]
         else:
@@ -142,11 +144,7 @@ def create_content_features(
     numeric_sparse_norm = normalize(numeric_sparse, norm="l2", axis=1)
 
     # Concatenate horizontally
-    content_features = hstack([
-        shelf_tfidf_norm,
-        author_features_norm,
-        numeric_sparse_norm
-    ], format="csr")
+    content_features = hstack([shelf_tfidf_norm, author_features_norm, numeric_sparse_norm], format="csr")
 
     logger.info(f"\nFinal content features matrix shape: {content_features.shape}")
     logger.info(f"  Shelf features: {shelf_tfidf_norm.shape[1]}")
@@ -160,24 +158,35 @@ def create_content_features(
 
     # Save mapping with metadata flags
     logger.info(f"Saving feature mapping to {output_mapping_path}...")
-    mapping_df = pl.DataFrame({
-        "matrix_idx": list(range(len(matrix_book_ids))),
-        "book_id": matrix_book_ids,
-        "has_metadata": [bid in metadata_dict for bid in matrix_book_ids],
-        "num_shelves": [len(metadata_dict.get(bid, {}).get("shelves", "").split(",")) if metadata_dict.get(bid, {}).get("shelves") else 0 for bid in matrix_book_ids],
-        "num_authors": [metadata_dict.get(bid, {}).get("num_authors", 0) for bid in matrix_book_ids],
-    })
+    mapping_df = pl.DataFrame(
+        {
+            "matrix_idx": list(range(len(matrix_book_ids))),
+            "book_id": matrix_book_ids,
+            "has_metadata": [bid in metadata_dict for bid in matrix_book_ids],
+            "num_shelves": [
+                len(metadata_dict.get(bid, {}).get("shelves", "").split(","))
+                if metadata_dict.get(bid, {}).get("shelves")
+                else 0
+                for bid in matrix_book_ids
+            ],
+            "num_authors": [metadata_dict.get(bid, {}).get("num_authors", 0) for bid in matrix_book_ids],
+        }
+    )
     mapping_df.write_parquet(output_mapping_path)
 
     # Statistics
-    logger.info("\n" + "="*70)
+    logger.info("\n" + "=" * 70)
     logger.info("Content Features Statistics:")
-    logger.info(f"  Books with any metadata: {mapping_df.filter(pl.col('has_metadata')).height:,} ({100*mapping_df.filter(pl.col('has_metadata')).height/len(mapping_df):.1f}%)")
+    logger.info(
+        f"  Books with any metadata: {mapping_df.filter(pl.col('has_metadata')).height:,} ({100 * mapping_df.filter(pl.col('has_metadata')).height / len(mapping_df):.1f}%)"
+    )
     logger.info(f"  Books with shelves: {mapping_df.filter(pl.col('num_shelves') > 0).height:,}")
     logger.info(f"  Books with authors: {mapping_df.filter(pl.col('num_authors') > 0).height:,}")
     logger.info(f"  Total feature dimensions: {content_features.shape[1]:,}")
-    logger.info(f"  Matrix sparsity: {100 * (1 - content_features.nnz / (content_features.shape[0] * content_features.shape[1])):.2f}%")
-    logger.info("="*70)
+    logger.info(
+        f"  Matrix sparsity: {100 * (1 - content_features.nnz / (content_features.shape[0] * content_features.shape[1])):.2f}%"
+    )
+    logger.info("=" * 70)
 
     return content_features, mapping_df
 

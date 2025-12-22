@@ -112,7 +112,7 @@ class KnnRecommender:
 
         distances, indices = self.model.kneighbors(
             self.data.iloc[idx].values.reshape(1, -1),  # Fixed: was 'data[idx]'
-            n_neighbors=n_recommendations + 1
+            n_neighbors=n_recommendations + 1,
         )
 
         # sort recommendations

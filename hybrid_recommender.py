@@ -77,25 +77,19 @@ class HybridRecommender:
         print(f"Initialized with {len(self.book_ids):,} books")
         print(f"  Collaborative: {self.interaction_matrix.shape}")
         print(f"  Content: {self.content_features.shape}")
-        print(f"  Metadata coverage: {len(self.metadata_dict):,} ({100*len(self.metadata_dict)/len(self.book_ids):.1f}%)")
+        print(
+            f"  Metadata coverage: {len(self.metadata_dict):,} ({100 * len(self.metadata_dict) / len(self.book_ids):.1f}%)"
+        )
 
         # Initialize KNN models
         print("\nFitting collaborative KNN...")
         self.collaborative_knn = NearestNeighbors(
-            metric="cosine",
-            algorithm="brute",
-            n_neighbors=n_neighbors,
-            n_jobs=-1
+            metric="cosine", algorithm="brute", n_neighbors=n_neighbors, n_jobs=-1
         )
         self.collaborative_knn.fit(self.interaction_matrix)
 
         print("Fitting content-based KNN...")
-        self.content_knn = NearestNeighbors(
-            metric="cosine",
-            algorithm="brute",
-            n_neighbors=n_neighbors,
-            n_jobs=-1
-        )
+        self.content_knn = NearestNeighbors(metric="cosine", algorithm="brute", n_neighbors=n_neighbors, n_jobs=-1)
         self.content_knn.fit(self.content_features)
 
         print("Hybrid recommender ready!\n")
@@ -131,16 +125,10 @@ class HybridRecommender:
             list: [(idx, distance), ...]
         """
         book_vector = self.interaction_matrix[book_idx]
-        distances, indices = self.collaborative_knn.kneighbors(
-            book_vector,
-            n_neighbors=n_recommendations + 1
-        )
+        distances, indices = self.collaborative_knn.kneighbors(book_vector, n_neighbors=n_recommendations + 1)
 
         # Skip first result (query book itself)
-        recommendations = [
-            (indices[0][i], distances[0][i])
-            for i in range(1, len(indices[0]))
-        ]
+        recommendations = [(indices[0][i], distances[0][i]) for i in range(1, len(indices[0]))]
 
         return recommendations
 
@@ -155,16 +143,10 @@ class HybridRecommender:
             list: [(idx, distance), ...]
         """
         book_vector = self.content_features[book_idx]
-        distances, indices = self.content_knn.kneighbors(
-            book_vector,
-            n_neighbors=n_recommendations + 1
-        )
+        distances, indices = self.content_knn.kneighbors(book_vector, n_neighbors=n_recommendations + 1)
 
         # Skip first result (query book itself)
-        recommendations = [
-            (indices[0][i], distances[0][i])
-            for i in range(1, len(indices[0]))
-        ]
+        recommendations = [(indices[0][i], distances[0][i]) for i in range(1, len(indices[0]))]
 
         return recommendations
 
@@ -201,10 +183,7 @@ class HybridRecommender:
             content_score = content_scores.get(idx, 0)
 
             # Weighted combination
-            combined_score = (
-                self.collaborative_weight * collab_score +
-                self.content_weight * content_score
-            )
+            combined_score = self.collaborative_weight * collab_score + self.content_weight * content_score
 
             combined_recommendations.append((idx, combined_score, collab_score, content_score))
 
@@ -213,14 +192,7 @@ class HybridRecommender:
 
         return combined_recommendations[:n_recommendations]
 
-    def print_recommendations(
-        self,
-        query,
-        n_recommendations=5,
-        method="hybrid",
-        threshold=60,
-        show_details=True
-    ):
+    def print_recommendations(self, query, n_recommendations=5, method="hybrid", threshold=60, show_details=True):
         """Print recommendations in a readable format.
 
         Args:
@@ -230,10 +202,10 @@ class HybridRecommender:
             threshold: Fuzzy match threshold
             show_details: Show recommendation details
         """
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"Query: {query}")
         print(f"Method: {method.upper()}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
         # Find book
         matches = self.fuzzy_search(query, threshold=threshold)
@@ -258,9 +230,9 @@ class HybridRecommender:
             meta = self.metadata_dict[book_id]
             print(f"  Authors: {meta.get('authors', 'N/A')}")
             print(f"  Rating: {meta.get('average_rating', 0):.2f} ({meta.get('ratings_count', 0):,} ratings)")
-            shelves = meta.get('shelves', '')
+            shelves = meta.get("shelves", "")
             if shelves:
-                top_shelves = shelves.split(',')[:5]
+                top_shelves = shelves.split(",")[:5]
                 print(f"  Genres: {', '.join(top_shelves)}")
 
         # Get recommendations
@@ -277,7 +249,7 @@ class HybridRecommender:
                 if show_details and self.book_ids[idx] in self.metadata_dict:
                     meta = self.metadata_dict[self.book_ids[idx]]
                     print(f"   Authors: {meta.get('authors', 'N/A')[:50]}")
-                    shelves = meta.get('shelves', '').split(',')[:3]
+                    shelves = meta.get("shelves", "").split(",")[:3]
                     if shelves and shelves[0]:
                         print(f"   Genres: {', '.join(shelves)}")
 
@@ -286,33 +258,29 @@ class HybridRecommender:
             for i, (idx, dist) in enumerate(recommendations, 1):
                 title = self.idx_to_title.get(idx, f"Book ID: {self.book_ids[idx]}")
                 print(f"{i}. {title[:60]}")
-                print(f"   Similarity: {1-dist:.3f}")
+                print(f"   Similarity: {1 - dist:.3f}")
 
         elif method == "content":
             recommendations = self.recommend_content(book_idx, n_recommendations)
             for i, (idx, dist) in enumerate(recommendations, 1):
                 title = self.idx_to_title.get(idx, f"Book ID: {self.book_ids[idx]}")
                 print(f"{i}. {title[:60]}")
-                print(f"   Similarity: {1-dist:.3f}")
+                print(f"   Similarity: {1 - dist:.3f}")
 
         print("=" * 70)
 
 
 def main():
     """Demo the hybrid recommender."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("HYBRID BOOK RECOMMENDATION SYSTEM")
     print("Collaborative Filtering + Content-Based Filtering")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     start = time.time()
 
     # Initialize recommender
-    recommender = HybridRecommender(
-        collaborative_weight=0.6,
-        content_weight=0.4,
-        n_neighbors=30
-    )
+    recommender = HybridRecommender(collaborative_weight=0.6, content_weight=0.4, n_neighbors=30)
 
     init_time = time.time() - start
     print(f"Initialization time: {init_time:.2f}s\n")
@@ -325,18 +293,13 @@ def main():
     ]
 
     for query in test_queries:
-        recommender.print_recommendations(
-            query,
-            n_recommendations=5,
-            method="hybrid",
-            show_details=True
-        )
+        recommender.print_recommendations(query, n_recommendations=5, method="hybrid", show_details=True)
         print()
 
     total_time = time.time() - start
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"Total execution time: {total_time:.2f}s")
-    print("="*70)
+    print("=" * 70)
 
 
 if __name__ == "__main__":

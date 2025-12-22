@@ -11,11 +11,7 @@ from pathlib import Path
 # Add parent directory to path to import knn_recommender_sparse
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from knn_recommender_sparse import (
-    load_sparse_matrix,
-    create_title_mapping,
-    SparseKnnRecommender
-)
+from knn_recommender_sparse import load_sparse_matrix, create_title_mapping, SparseKnnRecommender
 
 
 @st.cache_resource
@@ -26,8 +22,7 @@ def load_recommender():
         title_to_idx, idx_to_title, book_id_to_title = create_title_mapping(book_ids)
 
         recommender = SparseKnnRecommender(
-            matrix, book_ids, title_to_idx, idx_to_title,
-            metric="cosine", n_neighbors=20
+            matrix, book_ids, title_to_idx, idx_to_title, metric="cosine", n_neighbors=20
         )
         recommender.fit()
         return recommender, title_to_idx, idx_to_title, book_id_to_title, book_ids
@@ -83,11 +78,7 @@ def format_book_display(title, book_info):
 
 
 def main():
-    st.set_page_config(
-        page_title="Book Recommender",
-        page_icon="📚",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Book Recommender", page_icon="📚", layout="wide")
 
     st.title("📚 Book Recommendation System")
     st.markdown("Get personalized book recommendations using collaborative filtering")
@@ -104,20 +95,10 @@ def main():
     # Sidebar - Settings
     st.sidebar.header("⚙️ Settings")
 
-    n_recommendations = st.sidebar.slider(
-        "Number of recommendations",
-        min_value=5,
-        max_value=50,
-        value=20,
-        step=5
-    )
+    n_recommendations = st.sidebar.slider("Number of recommendations", min_value=5, max_value=50, value=20, step=5)
 
     fuzzy_threshold = st.sidebar.slider(
-        "Fuzzy match threshold",
-        min_value=50,
-        max_value=100,
-        value=60,
-        help="Lower values allow more flexible matching"
+        "Fuzzy match threshold", min_value=50, max_value=100, value=60, help="Lower values allow more flexible matching"
     )
 
     # Optional filters
@@ -130,13 +111,7 @@ def main():
     if books_df is not None and "average_rating" in books_df.columns:
         filter_by_rating = st.sidebar.checkbox("Filter by minimum rating")
         if filter_by_rating:
-            min_rating = st.sidebar.slider(
-                "Minimum average rating",
-                min_value=0.0,
-                max_value=5.0,
-                value=3.5,
-                step=0.1
-            )
+            min_rating = st.sidebar.slider("Minimum average rating", min_value=0.0, max_value=5.0, value=3.5, step=0.1)
 
     if books_df is not None and "publication_year" in books_df.columns:
         filter_by_year = st.sidebar.checkbox("Filter by publication year")
@@ -158,15 +133,12 @@ def main():
         "Type to search or select a book:",
         options=available_titles,
         index=None,
-        placeholder="Start typing a book title..."
+        placeholder="Start typing a book title...",
     )
 
     # Alternative: text input for fuzzy search
     st.markdown("**OR**")
-    fuzzy_search = st.text_input(
-        "Enter a book title (fuzzy search):",
-        placeholder="e.g., 'Harry Potter'"
-    )
+    fuzzy_search = st.text_input("Enter a book title (fuzzy search):", placeholder="e.g., 'Harry Potter'")
 
     # Get recommendations button
     if st.button("Get Recommendations", type="primary"):
@@ -178,9 +150,7 @@ def main():
 
         with st.spinner(f"Finding recommendations for '{book_query}'..."):
             recommendations = recommender.recommend(
-                book_query,
-                n_recommendations=n_recommendations,
-                threshold=fuzzy_threshold
+                book_query, n_recommendations=n_recommendations, threshold=fuzzy_threshold
             )
 
         if not recommendations:
