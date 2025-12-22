@@ -124,6 +124,8 @@ The app will open in your browser at `http://localhost:8501`
 
 **Option 2: Using Docker**
 ```bash
+# must remove existing artifacts!
+docker-compose down
 # Build and run with docker-compose
 docker-compose up --build
 

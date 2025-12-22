@@ -1,7 +1,7 @@
 """Compare KNN-only vs Hybrid recommendations side-by-side."""
 
 import time
-from hybrid_recommender import HybridRecommender
+from src.hybrid_recommender import HybridRecommender
 
 
 def compare_recommendations(query, n_recommendations=5):

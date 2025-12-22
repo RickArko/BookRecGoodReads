@@ -11,7 +11,7 @@ from pathlib import Path
 # Add parent directory to path to import knn_recommender_sparse
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from knn_recommender_sparse import load_sparse_matrix, create_title_mapping, SparseKnnRecommender
+from src.knn_recommender_sparse import load_sparse_matrix, create_title_mapping, SparseKnnRecommender
 
 
 @st.cache_resource
