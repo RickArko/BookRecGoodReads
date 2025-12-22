@@ -53,7 +53,7 @@ def download_file(id, output=DATA_DIR, quiet=False):
         quiet (bool, optional): _description_. Defaults to False.
     """
     url = f"https://drive.google.com/uc?id={id}"
-    gdown.download(url, output=output, quiet=quiet)
+    gdown.download(url, output=output, quiet=quiet, fuzzy=True)
 
 
 def download_goodreads_data(data_dir: str):
