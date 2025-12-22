@@ -8,17 +8,27 @@ from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
 from fuzzywuzzy import fuzz
 
-# processed data impports
-matrix = pd.read_pickle("data/filter/book_user_matrix_.pkl")
-DFTMP = pd.read_pickle("data/filter/filtered_titles.pkl")
+# Load processed data from parquet files
+matrix = pd.read_parquet("data/book_user_matrix.parquet")
+DFTMP = pd.read_parquet("data/filtered_titles.parquet")
+
+# Set book_id as index for matrix (first column from Polars pivot)
+if "book_id" in matrix.columns:
+    matrix = matrix.set_index("book_id")
+
 KNN20 = NearestNeighbors(metric="cosine", algorithm="brute", n_neighbors=20, n_jobs=-1)
 
-hashmap = {
-    book: i
-    for i, book in enumerate(list(DFTMP.set_index("book_id").loc[matrix.index].title))  # noqa
-}
+# Create hashmap: title -> row index in matrix
+# Get the books that are in the matrix, in the same order as matrix rows
+matrix_book_ids = matrix.index.tolist()
+DFTMP_indexed = DFTMP.set_index("book_id")
 
-DFTMP.loc[matrix.index].title
+# Create mapping from title to matrix row index
+hashmap = {}
+for i, book_id in enumerate(matrix_book_ids):
+    if book_id in DFTMP_indexed.index:
+        title = DFTMP_indexed.loc[book_id, "title"]
+        hashmap[title] = i
 
 DEFAULT_TOP_BOOKS = [
     536,
@@ -61,7 +71,7 @@ def fuzzy_matching(mapper, fav_book, verbose=True):
     match_tuple = []
 
     for title, idx in mapper.items():
-        ratio = fuzz.ratio(title.lower(), book.lower())
+        ratio = fuzz.ratio(title.lower(), fav_book.lower())  # Fixed: was 'book.lower()'
         if ratio >= 60:
             match_tuple.append((title, idx, ratio))
 
@@ -95,7 +105,15 @@ class KnnRecommender:
         """Give top n_recommendations books based on input
         book_name
         """
-        distances, indices = self.model.kneighbors(data[idx], n_neighbors=n_recommendations + 1)
+        # Get book index from fuzzy matching
+        idx = fuzzy_matching(self.hashmap, book_name)
+        if idx is None:
+            return
+
+        distances, indices = self.model.kneighbors(
+            self.data.iloc[idx].values.reshape(1, -1),  # Fixed: was 'data[idx]'
+            n_neighbors=n_recommendations + 1
+        )
 
         # sort recommendations
         raw_recommends = sorted(
@@ -103,14 +121,29 @@ class KnnRecommender:
             key=lambda x: x[1],
         )[:0:-1]
 
+        # Create reverse mapping: matrix row index -> title (or book_id if title not available)
         reverse_hashmap = {v: k for k, v in self.hashmap.items()}
+        matrix_book_ids = self.data.index.tolist()
+
         print("Recommendations for {}:".format(book_name))
         for i, (idx, dist) in enumerate(raw_recommends):
-            print("{0}: {1}, with distance of {2}".format(i + 1, reverse_hashmap[idx], dist))
+            # Use title if available, otherwise use book_id
+            if idx in reverse_hashmap:
+                book_label = reverse_hashmap[idx]
+            else:
+                book_label = f"Book ID: {matrix_book_ids[idx]}"
+            print("{0}: {1}, with distance of {2}".format(i + 1, book_label, dist))
 
 
 if __name__ == "__main__":
     start = time.time()
-    rec = KnnRecommender(matrix, hasmap)
-    rec.make_recommendations("Harry Pottter and the chamber of secrets", n_recommendations=10)
+    rec = KnnRecommender(matrix, hashmap)
+    rec._train_model()
+
+    # Try a book that's actually in the matrix
+    test_book = "The Da Vinci Code"  # One of the 50 books in the matrix
+    print(f"\nTesting with: {test_book}")
+    rec.make_recommendation_from_book(test_book, n_recommendations=5)
+
     seconds_taken = time.time() - start
+    print(f"\nTotal time: {seconds_taken:.2f} seconds")

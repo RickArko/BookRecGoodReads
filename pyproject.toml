@@ -19,6 +19,7 @@ dependencies = [
     "seaborn",
     "scipy",
     "tqdm",
+    "scikit-learn>=1.7.2",
 ]
 
 [tool.black]

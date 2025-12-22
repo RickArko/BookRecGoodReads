@@ -48,8 +48,17 @@ uv run python src/downloader.py
 # serialize compressed json into row-interations features (~15x speedup)
 uv run src\serialize_data.py --batch_size=500_000
 
-# Prepare model data
-uv run python prepare_data.py --min_reads=100 --top_books=5000 --top_users=100000
+
+### Prepare Model Date (now using polars ~10x speed-up)
+
+# Small Sample
+uv run python prepare_data.py --min_reads=50 --top_books=5000 --top_users=100000
+
+# Default Sample (~1m)
+uv run python prepare_data.py
+
+# Generate Large Interaction Sample
+uv run python prepare_data.py --min_reads=10 --top_books=50000 --top_users=1000000
 ```
 
 This creates:

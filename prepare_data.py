@@ -18,8 +18,10 @@ import argparse
 import time
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 from loguru import logger
+from scipy.sparse import csr_matrix
 
 # Default filter parameters
 DEFAULT_MIN_READS = 50
@@ -27,11 +29,11 @@ DEFAULT_TOP_BOOKS = 1_000
 DEFAULT_TOP_USERS = 50_000
 
 
-def active_filter(
+def active_filter_optimized(
     interactions_lf: pl.LazyFrame,
     min_reads: int = DEFAULT_MIN_READS,
 ) -> pl.LazyFrame:
-    """Filter interactions data by activity threshold.
+    """Filter interactions data by activity threshold with optimized lazy operations.
 
     Args:
         interactions_lf: LazyFrame with user-book interactions
@@ -42,26 +44,14 @@ def active_filter(
     """
     logger.info(f"Filtering interactions with min_reads={min_reads}")
 
-    # Get active users (users with >= min_reads interactions)
-    active_users = (
-        interactions_lf
-        .group_by("user_id")
-        .agg(pl.len().alias("count"))
-        .filter(pl.col("count") >= min_reads)
-        .select("user_id")
-    )
+    # Get active users and popular books
+    user_counts = interactions_lf.group_by("user_id").agg(pl.len().alias("count"))
+    book_counts = interactions_lf.group_by("book_id").agg(pl.len().alias("count"))
 
-    # Get popular books (books with > -min_reads interactions)
-    # Note: original used > -min_reads, keeping same logic
-    popular_books = (
-        interactions_lf
-        .group_by("book_id")
-        .agg(pl.len().alias("count"))
-        .filter(pl.col("count") > -min_reads)
-        .select("book_id")
-    )
+    active_users = user_counts.filter(pl.col("count") >= min_reads).select("user_id")
+    popular_books = book_counts.filter(pl.col("count") > -min_reads).select("book_id")
 
-    # Filter to active users and popular books
+    # Combine filtering in one operation
     filtered = (
         interactions_lf
         .join(active_users, on="user_id", how="inner")
@@ -156,12 +146,46 @@ def create_book_user_matrix(
 
     return matrix
 
+def create_book_user_matrix_sparse(interactions_lf, output_path):
+    """Create a sparse book-user rating matrix instead of dense pivot."""
+    logger.info("Creating sparse book-user matrix")
+    start = time.time()
+    
+    df = interactions_lf.select(["book_id", "user_id", "rating"]).collect()
+    
+    # Create mappings for indices
+    book_ids = df["book_id"].unique().sort().to_list()
+    user_ids = df["user_id"].unique().sort().to_list()
+    
+    book_to_idx = {bid: i for i, bid in enumerate(book_ids)}
+    user_to_idx = {uid: i for i, uid in enumerate(user_ids)}
+    
+    # Create sparse matrix using replace_strict for better performance
+    rows = df.select(pl.col("book_id").replace_strict(book_to_idx))["book_id"].to_list()
+    cols = df.select(pl.col("user_id").replace_strict(user_to_idx))["user_id"].to_list()
+    data = df["rating"].to_list()
+    
+    matrix = csr_matrix((data, (rows, cols)), 
+                        shape=(len(book_ids), len(user_ids)))
+    
+    # Save to NPZ format
+    import scipy.sparse as sp
+    sp.save_npz(output_path, matrix)
+    logger.info(f"Sparse matrix saved to {output_path}")
+    logger.info(f"Sparse matrix created: {matrix.shape}, density: {matrix.nnz / (matrix.shape[0] * matrix.shape[1]):.4f}")
+    
+    elapsed = time.time() - start
+    logger.info(f"Sparse matrix created in {elapsed:.2f}s")
+    return matrix
+
 
 def main(
     min_reads: int = DEFAULT_MIN_READS,
     top_books: int = DEFAULT_TOP_BOOKS,
     top_users: int = DEFAULT_TOP_USERS,
     output_dir: str = "data",
+    sample: float = 1.0,
+    compare_dense: bool = False,
 ):
     """Prepare model data using Polars lazy dataframes.
 
@@ -170,6 +194,8 @@ def main(
         top_books: Number of top books to include
         top_users: Number of top users to include
         output_dir: Directory for output files
+        sample: Sample fraction of data (0-1) for testing
+        compare_dense: If True, also create dense matrix for comparison
     """
     overall_start = time.time()
     output_dir = Path(output_dir)
@@ -178,16 +204,25 @@ def main(
     logger.info("=" * 60)
     logger.info("Starting model data preparation with Polars")
     logger.info(f"Parameters: min_reads={min_reads}, top_books={top_books:,}, top_users={top_users:,}")
+    if sample < 1.0:
+        logger.info(f"Using {sample*100:.1f}% sample of data for testing")
     logger.info("=" * 60)
 
     # Load data with lazy frames
     logger.info("Loading data files...")
-    titles_lf = pl.scan_parquet("data/titles.snap.parquet")
     interactions_lf = pl.scan_parquet("data/goodreads_interactions.snap.parquet")
-    books_lf = pl.scan_parquet("data/books_extra_features.snap.parquet")
+    titles_lf = pl.scan_parquet("data/titles.snap.parquet")
+    
+    # Apply sampling if specified
+    if sample < 1.0:
+        logger.info(f"Sampling {sample*100:.1f}% of interactions for testing...")
+        interactions_lf = interactions_lf.sample(fraction=sample, seed=42)
+
+    # Cast once at load time if needed
+    titles_lf = titles_lf.with_columns(pl.col("book_id").cast(pl.Int64))
 
     # Apply active filter
-    filtered_interactions = active_filter(interactions_lf, min_reads=min_reads)
+    filtered_interactions = active_filter_optimized(interactions_lf, min_reads=min_reads)
 
     # Get top users and books
     top_user_ids = get_top_x_users(filtered_interactions, top_x=top_users)
@@ -209,35 +244,54 @@ def main(
 
     # Get filtered titles
     logger.info("Filtering titles...")
-    # Cast book_id to string in top_book_ids to match titles schema
-    top_book_ids_str = top_book_ids.with_columns(
-        pl.col("book_id").cast(pl.Utf8)
-    )
+    # Join using the already-matched top_book_ids (which are i64 integers)
     filtered_titles = (
         titles_lf
-        .join(top_book_ids_str, on="book_id", how="inner")
+        .join(top_book_ids, on="book_id", how="inner")
     )
     titles_output = output_dir / "filtered_titles.parquet"
     filtered_titles.sink_parquet(str(titles_output))
     logger.info(f"Saved to {titles_output}")
 
-    # Create book-user matrix
-    logger.info("Creating book-user rating matrix...")
-    matrix_output = output_dir / "book_user_matrix.parquet"
-    matrix = create_book_user_matrix(final_interactions, str(matrix_output))
-
+    # Create sparse matrix (default)
+    logger.info("Creating sparse book-user rating matrix...")
+    sparse_matrix_output = output_dir / "book_user_matrix_sparse.npz"
+    sparse_matrix = create_book_user_matrix_sparse(final_interactions, str(sparse_matrix_output))
+    
+    # Optionally create dense matrix for comparison
+    if compare_dense:
+        logger.info("Creating dense book-user rating matrix for comparison...")
+        matrix_output = output_dir / "book_user_matrix.parquet"
+        matrix = create_book_user_matrix(final_interactions, str(matrix_output))
+        
+        # Compare matrix representations
+        logger.info("=" * 60)
+        logger.info("Matrix Comparison:")
+        logger.info(f"  Dense matrix shape: {matrix.shape}")
+        logger.info(f"  Dense matrix size: {matrix.nbytes / (1024**2):.2f} MB")
+        logger.info(f"  Sparse matrix shape: {sparse_matrix.shape}")
+        logger.info(f"  Sparse matrix nnz (non-zero): {sparse_matrix.nnz:,}")
+        logger.info(f"  Sparse matrix density: {sparse_matrix.nnz / (sparse_matrix.shape[0] * sparse_matrix.shape[1]):.4f}")
+        sparse_size = (sparse_matrix.data.nbytes + sparse_matrix.indices.nbytes + sparse_matrix.indptr.nbytes) / (1024**2)
+        logger.info(f"  Sparse matrix memory: {sparse_size:.2f} MB")
+        logger.info(f"  Memory savings: {(1 - sparse_size / (matrix.nbytes / (1024**2))) * 100:.1f}%")
+    else:
+        logger.info("Sparse matrix is primary format (use --compare_dense to also create dense matrix)")
+    
     # Summary statistics
     logger.info("=" * 60)
     logger.info("Summary:")
-    logger.info(f"  Book-user matrix shape: {matrix.shape}")
-    logger.info(f"  Number of books: {matrix.shape[0]:,}")
-    logger.info(f"  Number of users: {matrix.shape[1] - 1:,}")  # -1 for book_id column
+    logger.info(f"  Sparse matrix shape: {sparse_matrix.shape}")
+    logger.info(f"  Number of books: {sparse_matrix.shape[0]:,}")
+    logger.info(f"  Number of users: {sparse_matrix.shape[1]:,}")
+    logger.info(f"  Total interactions: {sparse_matrix.nnz:,}")
+    logger.info(f"  Sparsity: {sparse_matrix.nnz / (sparse_matrix.shape[0] * sparse_matrix.shape[1]):.4f}")
 
     total_time = time.time() - overall_start
     logger.info(f"Total processing time: {total_time:.2f} seconds")
     logger.info("=" * 60)
 
-    return matrix
+    return sparse_matrix if not compare_dense else matrix
 
 
 if __name__ == "__main__":
@@ -265,8 +319,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="data",
         help="Output directory for processed files (default: data)",
+        default="data",
+    )
+    parser.add_argument(
+        "--sample",
+        type=float,
+        default=1.0,
+        help="Sample fraction of data (0-1) for testing (default: 1.0)",
+    )
+    parser.add_argument(
+        "--compare_dense",
+        action="store_true",
+        help="Also create dense matrix for comparison (slower, more memory)",
     )
 
     args = parser.parse_args()
@@ -276,4 +341,6 @@ if __name__ == "__main__":
         top_books=args.top_books,
         top_users=args.top_users,
         output_dir=args.output_dir,
+        sample=args.sample,
+        compare_dense=args.compare_dense,
     )
