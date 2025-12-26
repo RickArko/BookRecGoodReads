@@ -28,6 +28,7 @@ class HybridRecommender:
         interaction_matrix_path="data/book_user_matrix_sparse.npz",
         content_features_path="data/content_features.npz",
         book_mapping_path="data/sparse_matrix_book_mapping.parquet",
+        content_mapping_path="data/content_features_mapping.parquet",
         metadata_path="data/book_metadata.parquet",
         collaborative_weight=0.6,
         content_weight=0.4,
@@ -38,7 +39,8 @@ class HybridRecommender:
         Args:
             interaction_matrix_path: Path to interaction sparse matrix
             content_features_path: Path to content features matrix
-            book_mapping_path: Path to book ID mapping
+            book_mapping_path: Path to book ID mapping for interaction matrix
+            content_mapping_path: Path to book ID mapping for content features
             metadata_path: Path to book metadata
             collaborative_weight: Weight for collaborative filtering (0-1)
             content_weight: Weight for content-based filtering (0-1)
@@ -56,17 +58,34 @@ class HybridRecommender:
         self.content_features = load_npz(content_features_path)
 
         print("Loading book mappings...")
-        mapping = pl.read_parquet(book_mapping_path)
-        self.book_ids = mapping.sort("matrix_idx")["book_id"].to_list()
+        # Collaborative filtering book IDs (interaction matrix rows)
+        collab_mapping = pl.read_parquet(book_mapping_path)
+        self.collab_book_ids = collab_mapping.sort("matrix_idx")["book_id"].to_list()
+
+        # Content features book IDs (content matrix rows)
+        content_mapping = pl.read_parquet(content_mapping_path)
+        self.content_book_ids = content_mapping.sort("matrix_idx")["book_id"].to_list()
+
+        # Create bidirectional mappings between collaborative and content indices
+        self.collab_to_content_idx = {}  # collab_idx -> content_idx
+        self.content_to_collab_idx = {}  # content_idx -> collab_idx
+
+        content_book_to_idx = {book_id: idx for idx, book_id in enumerate(self.content_book_ids)}
+
+        for collab_idx, book_id in enumerate(self.collab_book_ids):
+            if book_id in content_book_to_idx:
+                content_idx = content_book_to_idx[book_id]
+                self.collab_to_content_idx[collab_idx] = content_idx
+                self.content_to_collab_idx[content_idx] = collab_idx
 
         print("Loading metadata...")
         metadata = pl.read_parquet(metadata_path)
         self.metadata_dict = {row["book_id"]: row for row in metadata.iter_rows(named=True)}
 
-        # Create title mappings
+        # Create title mappings (use collaborative indices as primary)
         self.title_to_idx = {}
         self.idx_to_title = {}
-        for idx, book_id in enumerate(self.book_ids):
+        for idx, book_id in enumerate(self.collab_book_ids):
             if book_id in self.metadata_dict:
                 title = self.metadata_dict[book_id]["title"]
                 self.title_to_idx[title] = idx
@@ -74,11 +93,13 @@ class HybridRecommender:
             else:
                 self.idx_to_title[idx] = f"Book ID: {book_id}"
 
-        print(f"Initialized with {len(self.book_ids):,} books")
+        print(f"Initialized with {len(self.collab_book_ids):,} books")
         print(f"  Collaborative: {self.interaction_matrix.shape}")
         print(f"  Content: {self.content_features.shape}")
+        print(f"  Index mapping coverage: {len(self.collab_to_content_idx):,}/{len(self.collab_book_ids):,} "
+              f"({100 * len(self.collab_to_content_idx) / len(self.collab_book_ids):.1f}%)")
         print(
-            f"  Metadata coverage: {len(self.metadata_dict):,} ({100 * len(self.metadata_dict) / len(self.book_ids):.1f}%)"
+            f"  Metadata coverage: {len(self.metadata_dict):,} ({100 * len(self.metadata_dict) / len(self.collab_book_ids):.1f}%)"
         )
 
         # Initialize KNN models
@@ -136,17 +157,29 @@ class HybridRecommender:
         """Get recommendations using content-based filtering only.
 
         Args:
-            book_idx: Index of the query book
+            book_idx: Index of the query book (in collaborative matrix space)
             n_recommendations: Number of recommendations
 
         Returns:
-            list: [(idx, distance), ...]
+            list: [(collab_idx, distance), ...] - returns collaborative indices
         """
-        book_vector = self.content_features[book_idx]
+        # Map collaborative index to content index
+        if book_idx not in self.collab_to_content_idx:
+            # Book doesn't have content features, return empty
+            return []
+
+        content_idx = self.collab_to_content_idx[book_idx]
+        book_vector = self.content_features[content_idx]
         distances, indices = self.content_knn.kneighbors(book_vector, n_neighbors=n_recommendations + 1)
 
-        # Skip first result (query book itself)
-        recommendations = [(indices[0][i], distances[0][i]) for i in range(1, len(indices[0]))]
+        # Skip first result (query book itself) and map back to collaborative indices
+        recommendations = []
+        for i in range(1, len(indices[0])):
+            content_neighbor_idx = indices[0][i]
+            # Map content index back to collaborative index
+            if content_neighbor_idx in self.content_to_collab_idx:
+                collab_neighbor_idx = self.content_to_collab_idx[content_neighbor_idx]
+                recommendations.append((collab_neighbor_idx, distances[0][i]))
 
         return recommendations
 
@@ -225,7 +258,7 @@ class HybridRecommender:
         print(f"Using: {best_title} (match: {match_score}%)")
 
         # Show book details
-        book_id = self.book_ids[book_idx]
+        book_id = self.collab_book_ids[book_idx]
         if book_id in self.metadata_dict:
             meta = self.metadata_dict[book_id]
             print(f"  Authors: {meta.get('authors', 'N/A')}")
@@ -242,12 +275,12 @@ class HybridRecommender:
         if method == "hybrid":
             recommendations = self.recommend_hybrid(book_idx, n_recommendations)
             for i, (idx, combined, collab, content) in enumerate(recommendations, 1):
-                title = self.idx_to_title.get(idx, f"Book ID: {self.book_ids[idx]}")
+                title = self.idx_to_title.get(idx, f"Book ID: {self.collab_book_ids[idx]}")
                 print(f"\n{i}. {title[:60]}")
                 print(f"   Score: {combined:.3f} (collab: {collab:.3f}, content: {content:.3f})")
 
-                if show_details and self.book_ids[idx] in self.metadata_dict:
-                    meta = self.metadata_dict[self.book_ids[idx]]
+                if show_details and self.collab_book_ids[idx] in self.metadata_dict:
+                    meta = self.metadata_dict[self.collab_book_ids[idx]]
                     print(f"   Authors: {meta.get('authors', 'N/A')[:50]}")
                     shelves = meta.get("shelves", "").split(",")[:3]
                     if shelves and shelves[0]:
@@ -256,14 +289,14 @@ class HybridRecommender:
         elif method == "collaborative":
             recommendations = self.recommend_collaborative(book_idx, n_recommendations)
             for i, (idx, dist) in enumerate(recommendations, 1):
-                title = self.idx_to_title.get(idx, f"Book ID: {self.book_ids[idx]}")
+                title = self.idx_to_title.get(idx, f"Book ID: {self.collab_book_ids[idx]}")
                 print(f"{i}. {title[:60]}")
                 print(f"   Similarity: {1 - dist:.3f}")
 
         elif method == "content":
             recommendations = self.recommend_content(book_idx, n_recommendations)
             for i, (idx, dist) in enumerate(recommendations, 1):
-                title = self.idx_to_title.get(idx, f"Book ID: {self.book_ids[idx]}")
+                title = self.idx_to_title.get(idx, f"Book ID: {self.collab_book_ids[idx]}")
                 print(f"{i}. {title[:60]}")
                 print(f"   Similarity: {1 - dist:.3f}")
 

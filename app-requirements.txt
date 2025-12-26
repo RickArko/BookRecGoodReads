@@ -1,0 +1,13 @@
+# App-only dependencies for Docker deployment
+# Minimum required libraries matching pyproject.toml versions
+fuzzywuzzy[speedup]~=0.18.0
+loguru~=0.7.3
+polars~=1.36
+pandas~=2.3.3
+pyarrow~=22.0.0
+numpy>=1.20
+scipy~=1.15.3
+scikit-learn~=1.7.2
+plotly~=6.5.0
+streamlit~=1.52.2
+tqdm~=4.67

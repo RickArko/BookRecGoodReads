@@ -30,6 +30,8 @@ ENV/
 # Documentation
 *.md
 !README.md
+!MODEL.md
+!CONTRIBUTING.md
 docs/
 
 # Jupyter
@@ -69,3 +71,6 @@ htmlcov/
 
 # Keep only essential data files
 # Exclude raw/intermediate data if needed
+
+# uv build files
+uv.lock

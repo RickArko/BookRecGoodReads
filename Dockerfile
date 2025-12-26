@@ -14,23 +14,15 @@ RUN apt-get update && apt-get install -y \
 # Upgrade pip and install core packages
 RUN pip install --upgrade pip setuptools wheel
 
-# Copy project files first
-COPY pyproject.toml ./
+# Copy dependency file first for better caching
+COPY app-requirements.txt ./
+
+# Install dependencies with pinned versions
+RUN pip install --no-cache-dir -r app-requirements.txt
+
+# Copy project files
 COPY src ./src
 COPY app ./app
-COPY knn_recommender_sparse.py ./
-
-# Install dependencies from pyproject.toml
-# Install the package in editable mode
-RUN pip install --no-cache-dir \
-    pandas \
-    polars \
-    scipy \
-    scikit-learn \
-    implicit \
-    loguru \
-    streamlit \
-    plotly
 
 # Expose Streamlit port
 EXPOSE 8501

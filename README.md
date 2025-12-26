@@ -57,11 +57,16 @@ uv run python prepare_data.py --min_reads=50 --top_books=5000 --top_users=100000
 # Default Sample (~1m)
 uv run python prepare_data.py
 
-# Generate Large Interaction Sample
-uv run python prepare_data.py --min_reads=10 --top_books=50000 --top_users=1000000
-
 # Generate Optimized KNN Rec via Sparse Matrix
 uv run python knn_recommender_sparse.py
+
+```
+
+**Generate Large Interactions Sample for Production deployment**
+```bash
+
+# Generate Large Interaction Sample
+uv run python prepare_data.py --min_reads=10 --top_books=50000 --top_users=1000000
 
 ```
 
@@ -77,28 +82,28 @@ This creates:
 # uv run python prepare_model_data.py
 
 # Run KNN recommender
-uv run python knn_recommender.py
+uv run python src/knn_recommender.py
 
 # Train Spotlight model
-uv run python train_spotlight.py
+uv run python src/train_spotlight.py
 ```
 
 # Create Content-Based Features
 Extract metadata, content based feautures, tf-ids, ratings, etc.
 
 ```bash
-  uv run python extract_metadata.py
-  uv run python create_content_features.py
-  uv run python compare_recommenders.py
+  uv run python src/extract_metadata.py
+  uv run python src/create_content_features.py
+  uv run python src/compare_recommenders.py
 ```
 
 ### Compare Recomendations
 Compare single recommendation across available methods
 
 ```bash
-uv run python knn_recommender.py
-uv run python knn_recommender_sparse.py
-uv run python hybrid_recommender.py
+uv run python src/knn_recommender.py
+uv run python src/knn_recommender_sparse.py
+uv run python src/hybrid_recommender.py
 ```
 
 ### Models
@@ -116,8 +121,11 @@ uv run python hybrid_recommender.py
 # Install app dependencies
 uv sync --group app
 
-# Run the app
+# Run the default UI (KNN Recommender)
 uv run --group app streamlit run app/app.py
+
+# Run the Hybrid UI (KNN x CF X TFID)
+uv run --group app streamlit run app/app_enhanced.py
 ```
 
 The app will open in your browser at `http://localhost:8501`
