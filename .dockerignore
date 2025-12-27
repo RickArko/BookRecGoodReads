@@ -72,5 +72,4 @@ htmlcov/
 # Keep only essential data files
 # Exclude raw/intermediate data if needed
 
-# uv build files
-uv.lock
+# uv build files (uv.lock is included for reproducible builds)

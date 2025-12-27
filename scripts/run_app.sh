@@ -1,8 +1,15 @@
 #!/bin/bash
-# Quick script to run the Streamlit app
+# Quick script to run the Streamlit app on macOS/Linux
 
 echo "Starting Book Recommender App..."
 echo "================================"
+
+# Check if virtual environment exists
+if [ ! -d ".venv" ]; then
+    echo "ERROR: Virtual environment not found!"
+    echo "Please run the installation script first: scripts/install/install.sh"
+    exit 1
+fi
 
 # Check if data files exist
 if [ ! -f "data/book_user_matrix_sparse.npz" ]; then
@@ -14,6 +21,9 @@ if [ ! -f "data/book_user_matrix_sparse.npz" ]; then
     echo ""
     exit 1
 fi
+
+# Activate virtual environment
+source .venv/bin/activate
 
 # Run the app
 echo "Launching Streamlit..."

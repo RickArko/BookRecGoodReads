@@ -72,7 +72,7 @@ def calculate_diversity_score(recommendations, metadata_dict, recommender):
 
     genres_lists = []
     for idx, _, _, _ in recommendations:
-        book_id = recommender.book_ids[idx]
+        book_id = recommender.collab_book_ids[idx]
         if book_id in metadata_dict:
             meta = metadata_dict[book_id]
             shelves = meta.get('shelves', '')
@@ -148,7 +148,7 @@ def plot_genre_distribution(recommendations, metadata_dict, recommender):
     genre_counts = {}
 
     for idx, _, _, _ in recommendations:
-        book_id = recommender.book_ids[idx]
+        book_id = recommender.collab_book_ids[idx]
         if book_id in metadata_dict:
             meta = metadata_dict[book_id]
             shelves = meta.get('shelves', '')
@@ -230,7 +230,7 @@ def main():
             color_discrete_sequence=['#1f77b4', '#ff7f0e']
         )
         fig_weights.update_layout(height=250, showlegend=True)
-        st.sidebar.plotly_chart(fig_weights, use_container_width=True)
+        st.sidebar.plotly_chart(fig_weights, width='stretch')
 
     # Load data
     with st.spinner("Loading recommendation model..."):
@@ -301,7 +301,7 @@ def main():
         )
 
     with col2:
-        search_button = st.button("🔍 Search", type="primary", use_container_width=True)
+        search_button = st.button("🔍 Search", type="primary", width='stretch')
 
     # Show search results
     if search_query:
@@ -354,7 +354,7 @@ def main():
         # Filter recommendations
         filtered_recs = []
         for idx, combined, collab, content in recommendations:
-            book_id = recommender.book_ids[idx]
+            book_id = recommender.collab_book_ids[idx]
             book_info = metadata_dict.get(book_id, {})
 
             # Apply filters
@@ -386,7 +386,7 @@ def main():
             st.markdown(f"### Top {len(filtered_recs)} Recommendations")
 
             for rank, (idx, combined, collab, content) in enumerate(filtered_recs, 1):
-                book_id = recommender.book_ids[idx]
+                book_id = recommender.collab_book_ids[idx]
                 title = recommender.idx_to_title[idx]
                 book_info = metadata_dict.get(book_id, {})
 
@@ -430,12 +430,12 @@ def main():
             if recommendation_method == "Hybrid":
                 fig_scores = plot_score_breakdown(filtered_recs[:10], method="hybrid")
                 if fig_scores:
-                    st.plotly_chart(fig_scores, use_container_width=True)
+                    st.plotly_chart(fig_scores, width='stretch')
 
             # Genre distribution
             fig_genres = plot_genre_distribution(filtered_recs, metadata_dict, recommender)
             if fig_genres:
-                st.plotly_chart(fig_genres, use_container_width=True)
+                st.plotly_chart(fig_genres, width='stretch')
 
         with tab3:
             st.markdown("### Recommendation Metrics")
@@ -464,7 +464,7 @@ def main():
                 color_discrete_sequence=['#1f77b4']
             )
             fig_hist.update_layout(showlegend=False)
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(fig_hist, width='stretch')
 
 
 if __name__ == "__main__":

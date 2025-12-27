@@ -54,27 +54,57 @@ def create_title_mapping(book_ids):
     """Create mapping from book_id to title and from title to matrix index.
 
     Args:
-        book_ids: List of book IDs in matrix order
+        book_ids: List of book IDs (csv IDs) in matrix order
 
     Returns:
         tuple: (title_to_idx dict, idx_to_title dict, book_id_to_title dict)
     """
     print("Creating title mappings...")
 
-    # Load titles
-    titles_df = pl.read_parquet("data/filtered_titles.parquet")
-    book_id_to_title = dict(zip(titles_df["book_id"], titles_df["title"]))
+    # Load the book ID mapping (csv IDs -> json IDs)
+    # The UCSD dataset has two ID systems:
+    # - book_id_csv: used in interactions data
+    # - book_id: used in books JSON metadata
+    id_map_df = pl.read_csv("data/book_id_map.csv")
+    csv_to_json_id = dict(zip(id_map_df["book_id_csv"], id_map_df["book_id"]))
+
+    # Load titles (uses json IDs, stored as String)
+    titles_df = pl.read_parquet("data/titles.snap.parquet")
+    titles_df = titles_df.with_columns(pl.col("book_id").cast(pl.Int64))
+    json_id_to_title = dict(zip(titles_df["book_id"], titles_df["title"]))
 
     # Create mappings using matrix row order
     title_to_idx = {}
     idx_to_title = {}
+    book_id_to_title = {}  # csv_id -> title
+    missing_titles = 0
+    missing_id_map = 0
 
-    for idx, book_id in enumerate(book_ids):
-        title = book_id_to_title.get(book_id, f"Book ID: {book_id}")
+    for idx, csv_id in enumerate(book_ids):
+        # Map csv ID to json ID
+        json_id = csv_to_json_id.get(csv_id)
+        if json_id is None:
+            title = f"Book ID: {csv_id}"
+            missing_id_map += 1
+            missing_titles += 1
+        else:
+            # Get title using json ID
+            title = json_id_to_title.get(json_id)
+            if title is None:
+                title = f"Book ID: {csv_id}"
+                missing_titles += 1
+            else:
+                book_id_to_title[csv_id] = title
+
         title_to_idx[title] = idx
         idx_to_title[idx] = title
 
-    print(f"Mapped {len(book_id_to_title)} titles out of {len(book_ids)} books")
+    print(f"Mapped {len(book_ids) - missing_titles} titles out of {len(book_ids)} books")
+    if missing_titles > 0:
+        print(f"Warning: {missing_titles} books ({100*missing_titles/len(book_ids):.1f}%) have no title metadata")
+        if missing_id_map > 0:
+            print(f"  - {missing_id_map} books missing from book_id_map.csv")
+        print(f"  - {missing_titles - missing_id_map} books missing from titles.snap.parquet")
 
     return title_to_idx, idx_to_title, book_id_to_title
 
@@ -94,7 +124,9 @@ def fuzzy_matching(title_to_idx, query_book, threshold=60, verbose=True):
     matches = []
 
     for title, idx in title_to_idx.items():
-        ratio = fuzz.ratio(title.lower(), query_book.lower())
+        # Use partial_ratio for better partial string matching
+        # This handles cases like "Harry Potter" matching "Harry Potter and the Sorcerer's Stone"
+        ratio = fuzz.partial_ratio(title.lower(), query_book.lower())
         if ratio >= threshold:
             matches.append((title, idx, ratio))
 

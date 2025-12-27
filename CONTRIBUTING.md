@@ -255,6 +255,9 @@ uv run ruff check src/ app/ prepare_data.py --fix
 ## Docker Development
 
 ### Build and Run
+
+The Dockerfile uses `uv` for dependency management, ensuring consistency with local development:
+
 ```bash
 # Build image
 docker build -t book-recommender .
@@ -262,9 +265,17 @@ docker build -t book-recommender .
 # Run container
 docker run -p 8501:8501 book-recommender
 
-# Or use docker-compose
+# Or use docker-compose (recommended)
 docker-compose up --build
 ```
+
+**What happens during Docker build:**
+1. Installs `uv` from official image
+2. Copies `pyproject.toml` and `uv.lock` for reproducible builds
+3. Runs `uv sync --frozen --no-dev --group app` to install:
+   - Core dependencies from `dependencies` in pyproject.toml
+   - App group dependencies (streamlit)
+   - Excludes dev dependencies (pytest, black, jupyter, etc.)
 
 ### Development with Docker
 ```bash
@@ -273,6 +284,17 @@ docker run -p 8501:8501 \
   -v $(pwd)/app:/app/app \
   -v $(pwd)/data:/app/data \
   book-recommender
+```
+
+### Updating Dependencies in Docker
+
+After updating `pyproject.toml`:
+```bash
+# Update lock file locally
+uv lock
+
+# Rebuild Docker image with new dependencies
+docker-compose up --build
 ```
 
 ---

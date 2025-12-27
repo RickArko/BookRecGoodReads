@@ -15,27 +15,70 @@ Download these files manually and save to `data/` folder:
 - [goodreads_interactions.csv](https://drive.google.com/uc?id=1zmylV7XW2dfQVCLeg1LbllfQtHD2KUon)
 - [book_id_map.csv](https://drive.google.com/uc?id=1CHTAaNwyzvbi1TR08MJrJ03BxA266Yxr)
 - [user_id_map.csv](https://drive.google.com/uc?id=15ax-h0Oi_Oyee8gY_aAQN6odoijmiz6Q)
+
 ### Installation
+
+**Recommended to use uv**, to install uv:
 ```bash
-# Install uv if not already installed
 # Windows (PowerShell)
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-# Install dependencies and create virtual environment
-uv sync
 
-# Activate virtual environment
 # Windows
-.venv\Scripts\activate
+```powershell
+scripts\install\windows\install.bat
+```
 
-# macOS/Linux
-source .venv/bin/activate
+should give:
+```powershell
 
-# Install Jupyter kernel
-uv run python -m ipykernel install --user --name=book-rec
+Begin Windows installation for Book Recommender...
+================================
+Resolved 163 packages in 1ms
+Installed 12 packages in 368ms
+ + altair==6.0.0
+ + blinker==1.9.0
+ + cachetools==6.2.4
+ + gitdb==4.0.12
+ + gitpython==3.1.45
+ + protobuf==6.33.2
+ + pydeck==0.9.1
+ + smmap==5.0.2
+ + streamlit==1.52.2
+ + tenacity==9.1.2
+ + toml==0.10.2
+ + watchdog==6.0.0
+```
+
+To run the app
+```powershell
+scripts\run_app.bat
+```
+
+Expected result:
+```powershell
+(bookrecommender) C:\GIT\Github\Fun\BookRecommender>scripts\run_app.bat
+Starting Book Recommender App...
+================================
+Launching Streamlit...
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8502
+  Network URL: http://10.0.0.182:8502
+
+Loading sparse matrix from data/book_user_matrix_sparse.npz...
+Loaded matrix in 3.67s
+Shape: (50000, 770905) (books x users)
+Non-zero entries: 143,299,169
+Sparsity: 99.63%
+Creating title mappings...
+Mapped 50000 titles out of 50000 books
+Fitting KNN model...
+Model fitted in 0.26s
 ```
 
 ### Data Preparation
