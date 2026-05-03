@@ -27,7 +27,6 @@ from typing import Callable, Protocol
 import numpy as np
 from scipy.sparse import csr_matrix
 
-
 # ---------------------------------------------------------------------------
 # Ranking metrics (pure functions, binary relevance)
 # ---------------------------------------------------------------------------
@@ -186,8 +185,7 @@ class TopKRecommender(Protocol):
 
     name: str
 
-    def top_k(self, seed_book_idx: int, k: int) -> list[int]:
-        ...
+    def top_k(self, seed_book_idx: int, k: int) -> list[int]: ...
 
 
 def evaluate_recommender(

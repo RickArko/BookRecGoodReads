@@ -4,6 +4,7 @@ from pathlib import Path
 
 import polars as pl
 from loguru import logger
+
 from src.downloader import download_goodreads_data
 
 README = """Module to process downloaded goodreads json files and save in parquet format.

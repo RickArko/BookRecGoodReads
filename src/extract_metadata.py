@@ -10,7 +10,7 @@ For the books in our sparse matrix.
 
 import gzip
 import json
-from pathlib import Path
+
 import polars as pl
 from loguru import logger
 
@@ -122,7 +122,7 @@ def extract_metadata(
     from collections import Counter
 
     shelf_counts = Counter(all_shelves)
-    logger.info(f"\nTop 20 most common shelves:")
+    logger.info("\nTop 20 most common shelves:")
     for shelf, count in shelf_counts.most_common(20):
         logger.info(f"  {shelf:30s} {count:6,} books")
 

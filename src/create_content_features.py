@@ -8,10 +8,10 @@ This script creates:
 
 import numpy as np
 import polars as pl
+from loguru import logger
 from scipy.sparse import csr_matrix, hstack, save_npz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MultiLabelBinarizer, normalize
-from loguru import logger
 
 
 def create_content_features(
@@ -118,9 +118,9 @@ def create_content_features(
             features = [
                 np.log1p(meta.get("ratings_count", 0)),  # Log of ratings count
                 meta.get("average_rating", 0) / 5.0,  # Normalized rating
-                (meta.get("publication_year", 0) - 1900) / 100.0
-                if meta.get("publication_year", 0) > 0
-                else 0,  # Normalized year
+                (
+                    (meta.get("publication_year", 0) - 1900) / 100.0 if meta.get("publication_year", 0) > 0 else 0
+                ),  # Normalized year
                 np.log1p(meta.get("num_pages", 0)) / 10.0,  # Log of pages
             ]
         else:
@@ -164,9 +164,11 @@ def create_content_features(
             "book_id": matrix_book_ids,
             "has_metadata": [bid in metadata_dict for bid in matrix_book_ids],
             "num_shelves": [
-                len(metadata_dict.get(bid, {}).get("shelves", "").split(","))
-                if metadata_dict.get(bid, {}).get("shelves")
-                else 0
+                (
+                    len(metadata_dict.get(bid, {}).get("shelves", "").split(","))
+                    if metadata_dict.get(bid, {}).get("shelves")
+                    else 0
+                )
                 for bid in matrix_book_ids
             ],
             "num_authors": [metadata_dict.get(bid, {}).get("num_authors", 0) for bid in matrix_book_ids],

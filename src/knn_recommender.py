@@ -1,12 +1,11 @@
 """Model to make simple KNN prediction"""
 
-import os
 import time
-import gc
+
 import pandas as pd
+from fuzzywuzzy import fuzz
 from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
-from fuzzywuzzy import fuzz
 
 # Load processed data from parquet files
 matrix = pd.read_parquet("data/book_user_matrix.parquet")

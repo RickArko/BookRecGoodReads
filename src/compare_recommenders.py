@@ -1,6 +1,7 @@
 """Compare KNN-only vs Hybrid recommendations side-by-side."""
 
 import time
+
 from src.hybrid_recommender import HybridRecommender
 
 
@@ -88,7 +89,8 @@ def main():
     print("\n" + "=" * 100)
     print("SUMMARY")
     print("=" * 100)
-    print("""
+    print(
+        """
 Collaborative-Only (KNN):
   + Uses actual user interactions (who read what)
   + Good for popular books with many interactions
@@ -103,7 +105,8 @@ Hybrid (Collaborative + Content):
   - Slightly more complex
 
 RECOMMENDATION: Use Hybrid for better coverage and diversity!
-""")
+"""
+    )
     print("=" * 100)
 
 

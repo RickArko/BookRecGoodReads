@@ -3,15 +3,16 @@
 A web interface for getting book recommendations using KNN collaborative filtering.
 """
 
-import streamlit as st
-import polars as pl
 import sys
 from pathlib import Path
+
+import polars as pl
+import streamlit as st
 
 # Add parent directory to path to import knn_recommender_sparse
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.knn_recommender_sparse import load_sparse_matrix, create_title_mapping, SparseKnnRecommender
+from src.knn_recommender_sparse import SparseKnnRecommender, create_title_mapping, load_sparse_matrix
 
 
 @st.cache_resource
@@ -51,7 +52,7 @@ def load_book_metadata():
         # Fallback to basic titles
         try:
             return pl.read_parquet("data/filtered_titles.parquet")
-        except:
+        except Exception:
             return None
 
 
@@ -65,13 +66,13 @@ def format_book_display(title, book_info):
     ratings_count = book_info.get("ratings_count")
 
     details = []
-    if year and not pl.datatypes.Null in [type(year)]:
+    if year and pl.datatypes.Null not in [type(year)]:
         details.append(f"📅 {int(year)}")
-    if rating and not pl.datatypes.Null in [type(rating)]:
+    if rating and pl.datatypes.Null not in [type(rating)]:
         details.append(f"⭐ {rating:.2f}")
-    if ratings_count and not pl.datatypes.Null in [type(ratings_count)]:
+    if ratings_count and pl.datatypes.Null not in [type(ratings_count)]:
         details.append(f"👥 {int(ratings_count):,} ratings")
-    if pages and not pl.datatypes.Null in [type(pages)]:
+    if pages and pl.datatypes.Null not in [type(pages)]:
         details.append(f"📖 {int(pages)} pages")
 
     return title, " | ".join(details) if details else None

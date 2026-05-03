@@ -101,7 +101,7 @@ def main(data_dir: str = "data", n_factors: int = 32, n_iterations: int = 10):
     output_path = Path(data_dir) / "als_model.pkl"
     logger.info(f"Saving model to {output_path}...")
     model.save(str(output_path))
-    logger.info(f"Model saved successfully!")
+    logger.info("Model saved successfully!")
 
     logger.info(f"Model user factors shape: {model.user_factors.shape}")
     logger.info(f"Model item factors shape: {model.item_factors.shape}")

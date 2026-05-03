@@ -50,7 +50,6 @@ from src.evaluation import (
     sample_holdouts,
 )
 
-
 DEFAULT_K_VALUES = (5, 10, 20)
 DEFAULT_HYBRID_WEIGHTS: tuple[tuple[float, float], ...] = (
     (0.3, 0.7),
@@ -85,9 +84,7 @@ def load_assets(data_dir: Path) -> EvalAssets:
 
     content_id_to_idx = {bid: idx for idx, bid in enumerate(content_book_ids)}
     collab_to_content = {
-        collab_idx: content_id_to_idx[bid]
-        for collab_idx, bid in enumerate(collab_book_ids)
-        if bid in content_id_to_idx
+        collab_idx: content_id_to_idx[bid] for collab_idx, bid in enumerate(collab_book_ids) if bid in content_id_to_idx
     }
     return EvalAssets(interactions=interactions, content_features=content, collab_to_content_idx=collab_to_content)
 
@@ -250,7 +247,9 @@ def render_report(
     lines.append("## Setup")
     lines.append("")
     lines.append(f"- Catalog size: **{n_books:,}** books")
-    lines.append(f"- Sampled users: **{n_users_actual:,}** (target {n_users_target:,}, min interactions {min_interactions})")
+    lines.append(
+        f"- Sampled users: **{n_users_actual:,}** (target {n_users_target:,}, min interactions {min_interactions})"
+    )
     lines.append(f"- Random seed: `{seed}`")
     lines.append(f"- Cutoffs evaluated: {', '.join(f'K={k}' for k in k_values)}")
     lines.append("")
@@ -350,18 +349,18 @@ def run_eval(
     assets = load_assets(data_dir)
     timings["load_assets"] = time.time() - t
     n_books = assets.interactions.shape[0]
-    logger.info(f"Loaded {n_books:,}-book catalog (interactions: {assets.interactions.shape}, content: {assets.content_features.shape})")
+    logger.info(
+        f"Loaded {n_books:,}-book catalog (interactions: {assets.interactions.shape}, content: {assets.content_features.shape})"
+    )
 
     t = time.time()
-    samples = sample_holdouts(
-        assets.interactions, n_users=n_users, min_interactions=min_interactions, seed=seed
-    )
+    samples = sample_holdouts(assets.interactions, n_users=n_users, min_interactions=min_interactions, seed=seed)
     timings["sample_holdouts"] = time.time() - t
     if not samples:
-        raise RuntimeError(
-            f"No users met min_interactions={min_interactions}. Try a smaller threshold."
-        )
-    logger.info(f"Sampled {len(samples)} users; mean held-out positives = {np.mean([s.n_positives for s in samples]):.1f}")
+        raise RuntimeError(f"No users met min_interactions={min_interactions}. Try a smaller threshold.")
+    logger.info(
+        f"Sampled {len(samples)} users; mean held-out positives = {np.mean([s.n_positives for s in samples]):.1f}"
+    )
 
     max_k = max(k_values)
     candidate_k = max_k * 3  # over-fetch so hybrid has a richer pool to merge
@@ -416,8 +415,13 @@ def run_eval(
     )
     for w_collab, w_content in hybrid_weights:
         hybrid_top = hybrid_recs_from_candidates(
-            collab_recs_full, collab_dists_full, content_recs_full, content_dists_full,
-            w_collab=w_collab, w_content=w_content, k=max_k,
+            collab_recs_full,
+            collab_dists_full,
+            content_recs_full,
+            content_dists_full,
+            w_collab=w_collab,
+            w_content=w_content,
+            k=max_k,
         )
         results.append(
             score_runs(

@@ -9,11 +9,11 @@ This version:
 
 import time
 from pathlib import Path
-import numpy as np
+
 import polars as pl
-from scipy.sparse import load_npz, csr_matrix
-from sklearn.neighbors import NearestNeighbors
 from fuzzywuzzy import fuzz
+from scipy.sparse import load_npz
+from sklearn.neighbors import NearestNeighbors
 
 
 def load_sparse_matrix(matrix_path="data/book_user_matrix_sparse.npz"):
@@ -172,7 +172,7 @@ class SparseKnnRecommender:
 
     def fit(self):
         """Fit the KNN model."""
-        print(f"Fitting KNN model...")
+        print("Fitting KNN model...")
         start = time.time()
         self.model.fit(self.matrix)
         elapsed = time.time() - start

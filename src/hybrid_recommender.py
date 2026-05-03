@@ -11,13 +11,11 @@ The hybrid approach provides:
 """
 
 import time
-from pathlib import Path
-import numpy as np
+
 import polars as pl
+from fuzzywuzzy import fuzz
 from scipy.sparse import load_npz
 from sklearn.neighbors import NearestNeighbors
-from sklearn.metrics.pairwise import cosine_similarity
-from fuzzywuzzy import fuzz
 
 
 class HybridRecommender:
@@ -96,8 +94,10 @@ class HybridRecommender:
         print(f"Initialized with {len(self.collab_book_ids):,} books")
         print(f"  Collaborative: {self.interaction_matrix.shape}")
         print(f"  Content: {self.content_features.shape}")
-        print(f"  Index mapping coverage: {len(self.collab_to_content_idx):,}/{len(self.collab_book_ids):,} "
-              f"({100 * len(self.collab_to_content_idx) / len(self.collab_book_ids):.1f}%)")
+        print(
+            f"  Index mapping coverage: {len(self.collab_to_content_idx):,}/{len(self.collab_book_ids):,} "
+            f"({100 * len(self.collab_to_content_idx) / len(self.collab_book_ids):.1f}%)"
+        )
         print(
             f"  Metadata coverage: {len(self.metadata_dict):,} ({100 * len(self.metadata_dict) / len(self.collab_book_ids):.1f}%)"
         )

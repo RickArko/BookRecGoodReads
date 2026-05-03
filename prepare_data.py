@@ -18,15 +18,14 @@ import argparse
 import time
 from pathlib import Path
 
-import numpy as np
 import polars as pl
 from loguru import logger
 from scipy.sparse import csr_matrix, save_npz
 
 # Default filter parameters
-DEFAULT_MIN_READS = 10          # Books/users must have 10+ interactions
-DEFAULT_TOP_BOOKS = 50_000      # Keep top 50K books
-DEFAULT_TOP_USERS = 1_000_000   # Keep top 1M users
+DEFAULT_MIN_READS = 10  # Books/users must have 10+ interactions
+DEFAULT_TOP_BOOKS = 50_000  # Keep top 50K books
+DEFAULT_TOP_USERS = 1_000_000  # Keep top 1M users
 
 
 def active_filter_optimized(

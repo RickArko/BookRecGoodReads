@@ -4,7 +4,6 @@ import requests
 from loguru import logger
 from tqdm.auto import tqdm
 
-
 DATA_DIR = "data"
 BASE_URL = "https://datasets.grouplens.org/movielens/"
 

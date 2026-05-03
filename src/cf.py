@@ -2,7 +2,6 @@ import codecs
 import time
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from implicit.nearest_neighbours import CosineRecommender
 from scipy.sparse import csr_matrix

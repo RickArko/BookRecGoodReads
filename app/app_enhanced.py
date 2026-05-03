@@ -8,20 +8,21 @@ Features:
 - Visualizations
 """
 
-import streamlit as st
-import polars as pl
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import sys
-from pathlib import Path
-import numpy as np
+import polars as pl
+import streamlit as st
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.hybrid_recommender import HybridRecommender
 from fuzzywuzzy import process
+
+from src.hybrid_recommender import HybridRecommender
 
 
 @st.cache_resource
@@ -29,9 +30,7 @@ def load_hybrid_recommender(collab_weight=0.6, content_weight=0.4):
     """Load and cache the hybrid recommender model."""
     try:
         recommender = HybridRecommender(
-            collaborative_weight=collab_weight,
-            content_weight=content_weight,
-            n_neighbors=30
+            collaborative_weight=collab_weight, content_weight=content_weight, n_neighbors=30
         )
         return recommender
     except Exception as e:
@@ -75,9 +74,9 @@ def calculate_diversity_score(recommendations, metadata_dict, recommender):
         book_id = recommender.collab_book_ids[idx]
         if book_id in metadata_dict:
             meta = metadata_dict[book_id]
-            shelves = meta.get('shelves', '')
+            shelves = meta.get("shelves", "")
             if shelves:
-                genres = set(shelves.split(',')[:5])  # Top 5 genres
+                genres = set(shelves.split(",")[:5])  # Top 5 genres
                 genres_lists.append(genres)
 
     if not genres_lists:
@@ -93,7 +92,7 @@ def calculate_diversity_score(recommendations, metadata_dict, recommender):
             union = len(genres_lists[i] | genres_lists[j])
             if union > 0:
                 jaccard_similarity = intersection / union
-                total_difference += (1 - jaccard_similarity)
+                total_difference += 1 - jaccard_similarity
                 total_pairs += 1
 
     if total_pairs == 0:
@@ -114,27 +113,17 @@ def plot_score_breakdown(recommendations, method="hybrid"):
 
     fig = go.Figure()
 
-    fig.add_trace(go.Bar(
-        name='Collaborative',
-        x=titles,
-        y=collab_scores,
-        marker_color='#1f77b4'
-    ))
+    fig.add_trace(go.Bar(name="Collaborative", x=titles, y=collab_scores, marker_color="#1f77b4"))
 
-    fig.add_trace(go.Bar(
-        name='Content',
-        x=titles,
-        y=content_scores,
-        marker_color='#ff7f0e'
-    ))
+    fig.add_trace(go.Bar(name="Content", x=titles, y=content_scores, marker_color="#ff7f0e"))
 
     fig.update_layout(
-        title='Recommendation Score Breakdown',
-        xaxis_title='Recommendations',
-        yaxis_title='Score (%)',
-        barmode='stack',
+        title="Recommendation Score Breakdown",
+        xaxis_title="Recommendations",
+        yaxis_title="Score (%)",
+        barmode="stack",
         height=400,
-        showlegend=True
+        showlegend=True,
     )
 
     return fig
@@ -151,9 +140,9 @@ def plot_genre_distribution(recommendations, metadata_dict, recommender):
         book_id = recommender.collab_book_ids[idx]
         if book_id in metadata_dict:
             meta = metadata_dict[book_id]
-            shelves = meta.get('shelves', '')
+            shelves = meta.get("shelves", "")
             if shelves:
-                for genre in shelves.split(',')[:5]:  # Top 5 genres per book
+                for genre in shelves.split(",")[:5]:  # Top 5 genres per book
                     genre = genre.strip()
                     genre_counts[genre] = genre_counts.get(genre, 0) + 1
 
@@ -167,11 +156,11 @@ def plot_genre_distribution(recommendations, metadata_dict, recommender):
     fig = px.bar(
         x=list(counts),
         y=list(genres),
-        orientation='h',
-        title='Top Genres in Recommendations',
-        labels={'x': 'Count', 'y': 'Genre'},
+        orientation="h",
+        title="Top Genres in Recommendations",
+        labels={"x": "Count", "y": "Genre"},
         color=list(counts),
-        color_continuous_scale='Blues'
+        color_continuous_scale="Blues",
     )
 
     fig.update_layout(height=400, showlegend=False)
@@ -180,11 +169,7 @@ def plot_genre_distribution(recommendations, metadata_dict, recommender):
 
 
 def main():
-    st.set_page_config(
-        page_title="Enhanced Book Recommender",
-        page_icon="📚",
-        layout="wide"
-    )
+    st.set_page_config(page_title="Enhanced Book Recommender", page_icon="📚", layout="wide")
 
     # Header
     st.title("📚 Enhanced Book Recommendation System")
@@ -197,7 +182,7 @@ def main():
         "Recommendation Method",
         ["Hybrid", "Collaborative Only", "Content Only"],
         index=0,
-        help="Hybrid combines user interactions with book features (genres, authors)"
+        help="Hybrid combines user interactions with book features (genres, authors)",
     )
 
     # Hybrid weight tuning
@@ -212,25 +197,22 @@ def main():
             max_value=1.0,
             value=0.6,
             step=0.05,
-            help="Higher = more weight on user interaction data"
+            help="Higher = more weight on user interaction data",
         )
         content_weight = 1.0 - collab_weight
         st.sidebar.caption(f"Content Weight: {content_weight:.2f}")
 
         # Visual indicator
-        weights_df = pd.DataFrame({
-            'Type': ['Collaborative', 'Content'],
-            'Weight': [collab_weight, content_weight]
-        })
+        weights_df = pd.DataFrame({"Type": ["Collaborative", "Content"], "Weight": [collab_weight, content_weight]})
         fig_weights = px.pie(
             weights_df,
-            values='Weight',
-            names='Type',
-            title='Current Weights',
-            color_discrete_sequence=['#1f77b4', '#ff7f0e']
+            values="Weight",
+            names="Type",
+            title="Current Weights",
+            color_discrete_sequence=["#1f77b4", "#ff7f0e"],
         )
         fig_weights.update_layout(height=250, showlegend=True)
-        st.sidebar.plotly_chart(fig_weights, width='stretch')
+        st.sidebar.plotly_chart(fig_weights, width="stretch")
 
     # Load data
     with st.spinner("Loading recommendation model..."):
@@ -249,20 +231,10 @@ def main():
     # Sidebar - Recommendation Settings
     st.sidebar.header("⚙️ Settings")
 
-    n_recommendations = st.sidebar.slider(
-        "Number of recommendations",
-        min_value=5,
-        max_value=50,
-        value=10,
-        step=5
-    )
+    n_recommendations = st.sidebar.slider("Number of recommendations", min_value=5, max_value=50, value=10, step=5)
 
     fuzzy_threshold = st.sidebar.slider(
-        "Search threshold",
-        min_value=50,
-        max_value=100,
-        value=70,
-        help="Lower = more flexible matching"
+        "Search threshold", min_value=50, max_value=100, value=70, help="Lower = more flexible matching"
     )
 
     # Sidebar - Filters
@@ -297,11 +269,11 @@ def main():
         search_query = st.text_input(
             "Search for a book:",
             placeholder="Start typing... (e.g., 'Harry Potter', '1984', 'Lord of the Rings')",
-            key="search"
+            key="search",
         )
 
     with col2:
-        search_button = st.button("🔍 Search", type="primary", width='stretch')
+        search_button = st.button("🔍 Search", type="primary", width="stretch")
 
     # Show search results
     if search_query:
@@ -312,10 +284,10 @@ def main():
             selected_book = st.selectbox(
                 "Select a book:",
                 options=[title for title, score in matches],
-                format_func=lambda x: f"{x} ({[s for t, s in matches if t == x][0]}% match)"
+                format_func=lambda x: f"{x} ({[s for t, s in matches if t == x][0]}% match)",
             )
         else:
-            st.warning(f"No matches found. Try lowering the search threshold.")
+            st.warning("No matches found. Try lowering the search threshold.")
             selected_book = None
     else:
         selected_book = None
@@ -330,22 +302,15 @@ def main():
             # Get recommendations based on method
             if recommendation_method == "Hybrid":
                 recommendations = recommender.recommend_hybrid(
-                    recommender.title_to_idx[selected_book],
-                    n_recommendations
+                    recommender.title_to_idx[selected_book], n_recommendations
                 )
             elif recommendation_method == "Collaborative Only":
-                recs = recommender.recommend_collaborative(
-                    recommender.title_to_idx[selected_book],
-                    n_recommendations
-                )
+                recs = recommender.recommend_collaborative(recommender.title_to_idx[selected_book], n_recommendations)
                 # Convert to hybrid format (idx, combined_score, collab, content)
-                recommendations = [(idx, 1-dist, 1-dist, 0) for idx, dist in recs]
+                recommendations = [(idx, 1 - dist, 1 - dist, 0) for idx, dist in recs]
             else:  # Content Only
-                recs = recommender.recommend_content(
-                    recommender.title_to_idx[selected_book],
-                    n_recommendations
-                )
-                recommendations = [(idx, 1-dist, 0, 1-dist) for idx, dist in recs]
+                recs = recommender.recommend_content(recommender.title_to_idx[selected_book], n_recommendations)
+                recommendations = [(idx, 1 - dist, 0, 1 - dist) for idx, dist in recs]
 
         if not recommendations:
             st.error("No recommendations found.")
@@ -396,24 +361,24 @@ def main():
                     with col1:
                         # Book details
                         if book_info:
-                            authors = book_info.get('authors', 'N/A')
+                            authors = book_info.get("authors", "N/A")
                             st.markdown(f"**Authors:** {authors[:100]}")
 
-                            rating = book_info.get('average_rating')
-                            ratings_count = book_info.get('ratings_count')
+                            rating = book_info.get("average_rating")
+                            ratings_count = book_info.get("ratings_count")
                             if rating:
                                 st.markdown(f"**Rating:** ⭐ {rating:.2f} ({ratings_count:,} ratings)")
 
-                            year = book_info.get('publication_year')
-                            pages = book_info.get('num_pages')
+                            year = book_info.get("publication_year")
+                            pages = book_info.get("num_pages")
                             if year:
                                 st.markdown(f"**Published:** {int(year)}")
                             if pages:
                                 st.markdown(f"**Pages:** {int(pages)}")
 
-                            shelves = book_info.get('shelves', '')
+                            shelves = book_info.get("shelves", "")
                             if shelves:
-                                top_genres = shelves.split(',')[:5]
+                                top_genres = shelves.split(",")[:5]
                                 st.markdown(f"**Genres:** {', '.join(top_genres)}")
 
                     with col2:
@@ -430,12 +395,12 @@ def main():
             if recommendation_method == "Hybrid":
                 fig_scores = plot_score_breakdown(filtered_recs[:10], method="hybrid")
                 if fig_scores:
-                    st.plotly_chart(fig_scores, width='stretch')
+                    st.plotly_chart(fig_scores, width="stretch")
 
             # Genre distribution
             fig_genres = plot_genre_distribution(filtered_recs, metadata_dict, recommender)
             if fig_genres:
-                st.plotly_chart(fig_genres, width='stretch')
+                st.plotly_chart(fig_genres, width="stretch")
 
         with tab3:
             st.markdown("### Recommendation Metrics")
@@ -455,16 +420,16 @@ def main():
                 st.metric("Filter Pass Rate", f"{coverage:.0f}%")
 
             # Distribution of scores
-            scores = [combined*100 for _, combined, _, _ in filtered_recs]
+            scores = [combined * 100 for _, combined, _, _ in filtered_recs]
             fig_hist = px.histogram(
                 x=scores,
                 nbins=20,
-                title='Distribution of Recommendation Scores',
-                labels={'x': 'Score (%)', 'y': 'Count'},
-                color_discrete_sequence=['#1f77b4']
+                title="Distribution of Recommendation Scores",
+                labels={"x": "Score (%)", "y": "Count"},
+                color_discrete_sequence=["#1f77b4"],
             )
             fig_hist.update_layout(showlegend=False)
-            st.plotly_chart(fig_hist, width='stretch')
+            st.plotly_chart(fig_hist, width="stretch")
 
 
 if __name__ == "__main__":
