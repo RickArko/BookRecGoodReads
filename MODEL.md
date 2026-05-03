@@ -152,13 +152,82 @@ HybridRecommender(collaborative_weight=0.6, content_weight=0.4)
 
 | Aspect | Collaborative (KNN) | Content-Based | Hybrid |
 |--------|-------------------|---------------|--------|
-| **Cold-start (users)** | ❌ Poor | ✅ Good | ✅ Good |
-| **Cold-start (books)** | ⚠️ Needs some ratings | ✅ Works immediately | ✅ Good |
-| **Serendipity** | ✅ High | ❌ Low | ✅ Medium-High |
-| **Explainability** | ❌ Opaque | ✅ Clear | ⚠️ Mixed |
-| **Diversity** | ⚠️ Popular bias | ✅ Feature-based | ✅ Good |
-| **Data requirements** | ⚠️ Needs interactions | ✅ Just metadata | ⚠️ Both |
-| **Query latency** | ~100-200ms | ~50-100ms | ~150-250ms |
+| **Cold-start (users)** | Poor | Good | Good |
+| **Cold-start (books)** | Needs some ratings | Works immediately | Good |
+| **Serendipity** | High | Low | Medium-High |
+| **Explainability** | Opaque | Clear | Mixed |
+| **Diversity** | Popular bias | Feature-based | Good |
+| **Data requirements** | Needs interactions | Just metadata | Both |
+| **Query latency** | ~50-100ms (batched) | ~5-10ms (smaller features) | ~50-100ms |
+
+---
+
+## Measured Performance
+
+The qualitative comparison above is the textbook story. The actual numbers
+on this dataset are different in important ways. Full report:
+[`docs/EVALUATION.md`](docs/EVALUATION.md). Reproduce with:
+
+```bash
+uv run python evaluate.py --n-users 500 --seed 42
+```
+
+### Methodology (summary)
+
+For each of 500 sampled users (with ≥10 interactions), pick one interacted
+book at random as the **seed** and treat the user's other interacted books
+as held-out **positives**. Score each recommender's top-K against those
+positives. Recommenders are fit on the full matrix, so reported numbers
+are a small upper bound — but the *comparison* between recommenders is
+fair because they all see the same training data.
+
+### Headline (NDCG@10, 500 users, seed 42)
+
+| Rank | Recommender | NDCG@10 | Precision@10 | Recall@10 | Hit-Rate@10 |
+|---:|---|---:|---:|---:|---:|
+| 1 | `collaborative` | **0.3332** | 0.3126 | 0.0425 | 0.7580 |
+| 2 | `hybrid (0.7 / 0.3)` | 0.2708 | 0.2448 | 0.0343 | 0.6340 |
+| 3 | `hybrid (0.6 / 0.4)` | 0.2278 | 0.2034 | 0.0275 | 0.5640 |
+| 4 | `hybrid (0.5 / 0.5)` | 0.2010 | 0.1840 | 0.0251 | 0.5060 |
+| 5 | `hybrid (0.3 / 0.7)` | 0.1820 | 0.1664 | 0.0223 | 0.4600 |
+| 6 | `content` | 0.0104 | 0.0088 | 0.0012 | 0.0700 |
+
+### What the numbers actually tell us
+
+1. **Collaborative dominates the textbook hybrid.** Pure collaborative KNN
+   scores ~50% better than the production default (0.6 collab / 0.4
+   content) on every ranking metric. The content signal, as currently
+   implemented, *hurts* ranking quality more than it helps.
+2. **Content-based is essentially noise on this metric.** Hit-Rate@10 is
+   only 7%, vs. 76% for collaborative. The TF-IDF-over-shelves +
+   author-MLB feature space picks up *thematic* neighbors but those
+   neighbors are not the books a given user actually reads next.
+3. **Sweep is monotone.** Across hybrid weights from 0.3→0.7 collab,
+   every metric improves with more collab weight. There is no interior
+   optimum, which is the signature of a content signal that's adding
+   variance without bias correction.
+4. **Diversity flips the script.** Collaborative recommendations are
+   *more* diverse in content-feature space (0.59) than content-based
+   (0.39): cosine-KNN on shelves clusters around small genre
+   neighborhoods, while collab discovers cross-genre co-readers.
+5. **Coverage gap.** Collaborative reaches 11% of the catalog across 500
+   queries; content reaches 7%. Hybrid reaches 13% — combining the two
+   *does* widen coverage, even when it hurts precision. So if catalog
+   exposure is the goal (e.g., merchandising), hybrid still earns its
+   keep.
+
+### Implications for the production hybrid weights
+
+The current default `(0.6, 0.4)` was an a-priori choice. The measured data argues for one of:
+
+- **Pure collaborative** if the success metric is precision/recall.
+- **Hybrid (0.7 / 0.3)** if you want a small diversity/coverage bonus
+  without giving up too much precision.
+- **Re-engineer the content side** before defending the 0.5/0.5 mix.
+  Plausible improvements: drop the numeric features (they're cosine-
+  meaningless after L2 norm), use sentence-embedding descriptions
+  instead of shelf TF-IDF, or learn the combination weight per-query
+  from interaction overlap.
 
 ---
 
