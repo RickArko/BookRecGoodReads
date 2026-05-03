@@ -105,11 +105,11 @@ streamlit run app/app_enhanced.py
 # Basic Streamlit app
 streamlit run app/app.py
 
-# CLI comparison
-python compare_recommenders.py
+# Full evaluation across all recommenders
+uv run python evaluate.py
 
 # CLI hybrid recommender
-python hybrid_recommender.py
+uv run python src/hybrid_recommender.py
 ```
 
 ### Jupyter Notebook

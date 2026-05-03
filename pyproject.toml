@@ -26,8 +26,6 @@ line-length = 120
 
 [tool.ruff]
 line-length = 120
-# Legacy scratch files scheduled for removal — keep CI green until the cleanup commit lands.
-extend-exclude = ["src/prepare_model_data.py"]
 
 [tool.ruff.lint]
 extend-select = ["I"]  # isort import ordering on top of defaults

@@ -101,7 +101,7 @@ uv run python prepare_data.py --min_reads=50 --top_books=5000 --top_users=100000
 uv run python prepare_data.py
 
 # Generate Optimized KNN Rec via Sparse Matrix
-uv run python knn_recommender_sparse.py
+uv run python src/knn_recommender_sparse.py
 
 ```
 
@@ -121,30 +121,31 @@ This creates:
 
 ### Run Model Scripts
 ```bash
-# # Prepare model data
-# uv run python prepare_model_data.py
+# Run sparse KNN recommender (collaborative filtering)
+uv run python src/knn_recommender_sparse.py
 
-# Run KNN recommender
-uv run python src/knn_recommender.py
-
-# Train Spotlight model
+# Train ALS matrix-factorization model (implicit-feedback library)
 uv run python src/train_spotlight.py
 ```
 
-# Create Content-Based Features
-Extract metadata, content based feautures, tf-ids, ratings, etc.
+### Create Content-Based Features
+Extract metadata, content-based features, TF-IDF over shelves, etc.
 
 ```bash
-  uv run python src/extract_metadata.py
-  uv run python src/create_content_features.py
-  uv run python src/compare_recommenders.py
+uv run python src/extract_metadata.py
+uv run python src/create_content_features.py
 ```
 
-### Compare Recomendations
-Compare single recommendation across available methods
+### Compare Recommenders
+Run the full evaluation across collaborative, content-based, and hybrid
+recommenders. See [`docs/EVALUATION.md`](docs/EVALUATION.md) for the
+methodology and a measured leaderboard.
 
 ```bash
-uv run python src/knn_recommender.py
+# Full eval (~1 min for 500 users on a single CPU)
+uv run python evaluate.py
+
+# Or sanity-check a single query against each method:
 uv run python src/knn_recommender_sparse.py
 uv run python src/hybrid_recommender.py
 ```
@@ -208,7 +209,7 @@ uv run python src/serialize_data.py --batch_size=500_000
 uv run python prepare_data.py
 
 # Generate KNN model
-uv run python knn_recommender_sparse.py
+uv run python src/knn_recommender_sparse.py
 ```
 
 ---

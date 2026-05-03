@@ -129,10 +129,12 @@ BookRecommender/
 │   ├── serialize_data.py  # Preprocess raw data
 │   ├── extract_metadata.py          # Extract book metadata
 │   ├── create_content_features.py   # Content-based features
-│   ├── knn_recommender.py           # Basic KNN implementation
-│   ├── knn_recommender_sparse.py    # Optimized sparse KNN
-│   ├── hybrid_recommender.py        # Hybrid model
-│   └── compare_recommenders.py      # Model comparison
+│   ├── knn_recommender_sparse.py    # Sparse collaborative KNN
+│   ├── hybrid_recommender.py        # Hybrid (collab + content) model
+│   ├── train_spotlight.py           # ALS matrix factorization
+│   └── evaluation.py                # Ranking metrics + holdout sampler
+├── tests/                   # Unit tests
+├── evaluate.py              # End-to-end evaluation driver
 ├── data/                   # Data directory (gitignored)
 │   ├── goodreads_books.json.gz
 │   ├── goodreads_interactions.csv
@@ -207,7 +209,9 @@ uv run python src/hybrid_recommender.py
 
 ### Compare All Methods
 ```bash
-uv run python src/compare_recommenders.py
+# Run the full benchmark across collaborative, content, and hybrid.
+# Writes docs/EVALUATION.md and data/eval_results.json.
+uv run python evaluate.py
 ```
 
 ---
