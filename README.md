@@ -1,218 +1,196 @@
-# BookRecommender
-Repository for Book Recommendations using UCSD Goodreads Data.
+# Book Recommendations on Goodreads
 
-### Data
-GoodReads data from [UCSD Book Graph](https://sites.google.com/eng.ucsd.edu/ucsdbookgraph/home).
+End-to-end book recommender on the [UCSD Goodreads](https://mengtingwan.github.io/data/goodreads.html)
+public datasets (228M user-book interactions, 2M+ books). Implements three
+approaches — collaborative KNN, content-based KNN, and a hybrid — with a
+reproducible offline evaluation showing pure collaborative filtering
+beats the textbook hybrid by ~50% on NDCG@10 on this dataset.
 
-**Option 1: Automatic Download**
-```bash
-uv run python src/downloader.py
-```
+[![CI](https://github.com/RickArko/BookRecGoodReads/actions/workflows/ci.yml/badge.svg)](https://github.com/RickArko/BookRecGoodReads/actions/workflows/ci.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
-**Option 2: Manual Download** (if automatic fails)
-Download these files manually and save to `data/` folder:
-- [goodreads_books.json.gz](https://drive.google.com/uc?id=1LXpK1UfqtP89H1tYy0pBGHjYk8IhigUK)
-- [goodreads_interactions.csv](https://drive.google.com/uc?id=1zmylV7XW2dfQVCLeg1LbllfQtHD2KUon)
-- [book_id_map.csv](https://drive.google.com/uc?id=1CHTAaNwyzvbi1TR08MJrJ03BxA266Yxr)
-- [user_id_map.csv](https://drive.google.com/uc?id=15ax-h0Oi_Oyee8gY_aAQN6odoijmiz6Q)
+## Highlights
 
-### Installation
+- **Polars-streamed ingest** turns 4GB of CSV plus 2GB of gzipped JSON into a
+  50k × 770k sparse interaction matrix in roughly a minute.
+- **Three recommenders share infrastructure**: an item-based KNN over the
+  sparse interaction matrix, a TF-IDF + author + numeric content KNN, and a
+  hybrid that linearly combines the two.
+- **Offline evaluation framework** (precision / recall / NDCG / MAP / hit-rate
+  at K, catalog coverage, intra-list diversity) with deterministic
+  leave-one-out sampling. Generated report:
+  [`docs/EVALUATION.md`](docs/EVALUATION.md).
+- **Streamlit app** with fuzzy title search, score breakdowns, genre
+  distributions, and a metrics dashboard. Deployable via Docker.
+- **Tests + CI**: 68 unit tests, GitHub Actions across Python 3.10 and 3.12,
+  ruff and black on every commit.
 
-**Recommended to use uv**, to install uv:
-```bash
-# Windows (PowerShell)
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+## Headline Result (NDCG@10, 500 users, seed 42)
 
+| Recommender | NDCG@10 | Hit-Rate@10 | Coverage |
+|---|---:|---:|---:|
+| **Collaborative KNN** | **0.333** | 0.758 | 0.114 |
+| Hybrid (0.7 collab / 0.3 content) | 0.271 | 0.634 | 0.129 |
+| Hybrid (0.6 / 0.4) — production default | 0.228 | 0.564 | 0.133 |
+| Content KNN | 0.010 | 0.070 | 0.068 |
 
-# Windows
-```powershell
-scripts\install\windows\install.bat
-```
+The content signal *hurts* ranking quality at every weight setting; the
+production hybrid weights are due for re-tuning. Full discussion in
+[`MODEL.md`](MODEL.md#measured-performance).
 
-should give:
-```powershell
+## Quickstart
 
-Begin Windows installation for Book Recommender...
-================================
-Resolved 163 packages in 1ms
-Installed 12 packages in 368ms
- + altair==6.0.0
- + blinker==1.9.0
- + cachetools==6.2.4
- + gitdb==4.0.12
- + gitpython==3.1.45
- + protobuf==6.33.2
- + pydeck==0.9.1
- + smmap==5.0.2
- + streamlit==1.52.2
- + tenacity==9.1.2
- + toml==0.10.2
- + watchdog==6.0.0
-```
-
-To run the app
-```powershell
-scripts\run_app.bat
-```
-
-Expected result:
-```powershell
-(bookrecommender) C:\GIT\Github\Fun\BookRecommender>scripts\run_app.bat
-Starting Book Recommender App...
-================================
-Launching Streamlit...
-
-  You can now view your Streamlit app in your browser.
-
-  Local URL: http://localhost:8502
-  Network URL: http://10.0.0.182:8502
-
-Loading sparse matrix from data/book_user_matrix_sparse.npz...
-Loaded matrix in 3.67s
-Shape: (50000, 770905) (books x users)
-Non-zero entries: 143,299,169
-Sparsity: 99.63%
-Creating title mappings...
-Mapped 50000 titles out of 50000 books
-Fitting KNN model...
-Model fitted in 0.26s
-```
-
-### Data Preparation
-Run the commands below to download, and process all of the features data from scratch for the first time **__this will only be required once for a new developer setting up the project __ (expected runtime ~1 minute)**.
+Requires [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
-# This will download the data from Google Drive and create parquet files
-uv run python src/downloader.py 
-
-# serialize compressed json into row-interations features (~15x speedup)
-uv run src\serialize_data.py --batch_size=500_000
-
-
-### Prepare Model Date (now using polars ~10x speed-up)
-
-# Small Sample
-uv run python prepare_data.py --min_reads=50 --top_books=5000 --top_users=100000
-
-# Default Sample (~1m)
-uv run python prepare_data.py
-
-# Generate Optimized KNN Rec via Sparse Matrix
-uv run python src/knn_recommender_sparse.py
-
+curl -LsSf https://astral.sh/uv/install.sh | sh   # macOS / Linux
+# Windows PowerShell:
+# powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-**Generate Large Interactions Sample for Production deployment**
-```bash
-
-# Generate Large Interaction Sample
-uv run python prepare_data.py --min_reads=10 --top_books=50000 --top_users=1000000
-
-```
-
-This creates:
-- `data/titles.snap.parquet`
-- `data/books_simple_features.snap.parquet`
-- `data/books_extra_features.snap.parquet`
-- `data/goodreads_interactions.snap.parquet`
-
-### Run Model Scripts
-```bash
-# Run sparse KNN recommender (collaborative filtering)
-uv run python src/knn_recommender_sparse.py
-
-# Train ALS matrix-factorization model (implicit-feedback library)
-uv run python src/train_spotlight.py
-```
-
-### Create Content-Based Features
-Extract metadata, content-based features, TF-IDF over shelves, etc.
+Then:
 
 ```bash
-uv run python src/extract_metadata.py
-uv run python src/create_content_features.py
-```
+# 1. Install dependencies (project + dev + app groups)
+uv sync --all-groups
 
-### Compare Recommenders
-Run the full evaluation across collaborative, content-based, and hybrid
-recommenders. See [`docs/EVALUATION.md`](docs/EVALUATION.md) for the
-methodology and a measured leaderboard.
-
-```bash
-# Full eval (~1 min for 500 users on a single CPU)
-uv run python evaluate.py
-
-# Or sanity-check a single query against each method:
-uv run python src/knn_recommender_sparse.py
-uv run python src/hybrid_recommender.py
-```
-
-### Models
-1. Collaborative Filtering
-2. Content Based
-
----
-
-## 📱 Streamlit Web App
-
-### Running the App Locally
-
-**Option 1: Using uv (Recommended)**
-```bash
-# Install app dependencies
-uv sync --group app
-
-# Run the default UI (KNN Recommender)
-uv run --group app streamlit run app/app.py
-
-# Run the Hybrid UI (KNN x CF X TFID)
-uv run --group app streamlit run app/app_enhanced.py
-```
-
-The app will open in your browser at `http://localhost:8501`
-
-**Option 2: Using Docker**
-```bash
-# must remove existing artifacts!
-docker-compose down
-# Build and run with docker-compose
-docker-compose up --build
-
-# Or build and run manually
-docker build -t book-recommender .
-docker run -p 8501:8501 book-recommender
-```
-
-Access the app at `http://localhost:8501`
-
-### App Features
-
-- 🔍 **Smart Search**: Fuzzy matching to find books even with partial titles
-- 📊 **Filters**: Filter recommendations by rating, publication year, and more
-- 📈 **Similarity Scores**: See how closely each recommendation matches your selection
-- ⚙️ **Customizable**: Adjust the number of recommendations and match sensitivity
-
-### Prerequisites for the App
-
-Make sure you've prepared the data first:
-```bash
-# Download data
+# 2. Download UCSD Goodreads data (~6GB; one-time)
 uv run python src/downloader.py
 
-# Serialize data
+# 3. JSON / CSV → parquet (polars streaming)
 uv run python src/serialize_data.py --batch_size=500_000
 
-# Prepare model data
+# 4. Build the sparse interaction matrix + ID mappings
 uv run python prepare_data.py
+# Smaller smoke-test sample:
+# uv run python prepare_data.py --min_reads=50 --top_books=5000 --top_users=100000
 
-# Generate KNN model
-uv run python src/knn_recommender_sparse.py
+# 5. (Optional) Build content features for the hybrid recommender
+uv run python src/extract_metadata.py
+uv run python src/create_content_features.py
+
+# 6. Run the Streamlit app
+uv run --group app streamlit run app/app_enhanced.py
+# → http://localhost:8501
 ```
 
----
+## Architecture
 
-### Resources
-  - [collaborative-filtering-deep-dive](https://www.kaggle.com/code/jhoward/collaborative-filtering-deep-dive)
+```
+                ┌─────────────────────────┐
+                │  UCSD Goodreads dataset │
+                │  (~6GB CSV / NDJSON)    │
+                └────────────┬────────────┘
+                             │ src/downloader.py
+                             ▼
+              ┌──────────────────────────────┐
+              │  Polars streaming ingest     │ src/serialize_data.py
+              │  CSV/NDJSON → parquet        │
+              └────────────┬─────────────────┘
+                           │
+                           ▼
+              ┌────────────────────────────┐
+              │ Sparse books × users CSR   │ prepare_data.py
+              │ + ID mappings (parquet)    │
+              └─────┬───────────────┬──────┘
+                    │               │
+                    │               │ src/extract_metadata.py
+                    │               │ src/create_content_features.py
+                    ▼               ▼
+   ┌──────────────────────┐  ┌────────────────────────┐
+   │ Collaborative KNN    │  │ Content KNN            │
+   │ (sparse cosine)      │  │ (TF-IDF + authors +    │
+   │                      │  │  scaled numerics)      │
+   └─────────┬────────────┘  └──────────┬─────────────┘
+             └──────────────┬───────────┘
+                            ▼
+                ┌─────────────────────────┐
+                │ Hybrid (linear combine) │ src/hybrid_recommender.py
+                │ + Streamlit app         │ app/app_enhanced.py
+                │ + offline evaluation    │ evaluate.py
+                └─────────────────────────┘
+```
+
+## Repo Layout
+
+```
+.
+├── prepare_data.py              # Sparse interaction matrix + ID mappings
+├── evaluate.py                  # End-to-end recommender benchmark
+├── src/
+│   ├── downloader.py            # UCSD data download
+│   ├── serialize_data.py        # CSV/NDJSON → parquet (polars streaming)
+│   ├── extract_metadata.py      # Per-book metadata extraction
+│   ├── create_content_features.py  # TF-IDF + authors + numeric features
+│   ├── knn_recommender_sparse.py   # Collaborative KNN on sparse matrix
+│   ├── hybrid_recommender.py    # Collab + content linear combination
+│   ├── train_spotlight.py       # ALS matrix factorization (implicit lib)
+│   └── evaluation.py            # Ranking metrics + holdout sampler
+├── app/
+│   ├── app.py                   # Basic KNN UI
+│   └── app_enhanced.py          # Hybrid UI (recommended)
+├── tests/                       # Unit tests (run with `uv run pytest`)
+├── docs/EVALUATION.md           # Generated benchmark report
+├── notebooks/                   # EDA + training viz
+├── Dockerfile, docker-compose.yml
+└── pyproject.toml, uv.lock
+```
+
+## Reproduce the Benchmark
+
+After running the data preparation steps above:
+
+```bash
+uv run python evaluate.py --n-users 500 --seed 42
+```
+
+Writes [`docs/EVALUATION.md`](docs/EVALUATION.md) and
+`data/eval_results.json`. Adjust `--n-users`, `--k`, and `--hybrid-weights`
+to explore the cost / precision frontier.
+
+## Development
+
+```bash
+# Run the full test suite (currently 68 tests)
+uv run pytest
+
+# Lint and format checks
+uv run ruff check .
+uv run black --check .
+```
+
+CI runs the same matrix on every push and pull request — see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+For a deeper development walkthrough, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+For an at-a-glance pipeline reference, see [`QUICK_START.md`](QUICK_START.md).
+
+## Docker
+
+```bash
+# Build and run the hybrid Streamlit app on http://localhost:8501.
+docker-compose up --build
+
+# docker-compose.yml mounts ./data:/app/data:ro so the prepared
+# parquet/npz files are visible to the container without baking
+# them into the image.
+```
+
+## Manual Data Download
+
+If `src/downloader.py` fails (Google Drive throttling, etc.), download these
+files manually and save them to `data/`:
+
+- [`goodreads_books.json.gz`](https://drive.google.com/uc?id=1LXpK1UfqtP89H1tYy0pBGHjYk8IhigUK)
+- [`goodreads_interactions.csv`](https://drive.google.com/uc?id=1zmylV7XW2dfQVCLeg1LbllfQtHD2KUon)
+- [`book_id_map.csv`](https://drive.google.com/uc?id=1CHTAaNwyzvbi1TR08MJrJ03BxA266Yxr)
+- [`user_id_map.csv`](https://drive.google.com/uc?id=15ax-h0Oi_Oyee8gY_aAQN6odoijmiz6Q)
+
+## Acknowledgments
+
+- [UCSD Book Graph](https://mengtingwan.github.io/data/goodreads.html) —
+  Mengting Wan and Julian McAuley, *Item Recommendation on Monotonic
+  Behavior Chains*, RecSys 2018.
+- Reference reading:
+  [Collaborative Filtering Deep Dive](https://www.kaggle.com/code/jhoward/collaborative-filtering-deep-dive)
+  (Jeremy Howard).
