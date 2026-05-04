@@ -11,9 +11,10 @@ import time
 from pathlib import Path
 
 import polars as pl
-from fuzzywuzzy import fuzz
 from scipy.sparse import load_npz
 from sklearn.neighbors import NearestNeighbors
+
+from src.matching import fuzzy_title_matches
 
 
 def load_sparse_matrix(matrix_path="data/book_user_matrix_sparse.npz"):
@@ -112,37 +113,30 @@ def create_title_mapping(book_ids):
 def fuzzy_matching(title_to_idx, query_book, threshold=60, verbose=True):
     """Find book index using fuzzy string matching.
 
+    Thin wrapper around :func:`src.matching.fuzzy_title_matches` that adds the
+    print-based diagnostics this module's CLI demo expects. New code should
+    prefer the module-level helpers in ``src.matching``.
+
     Args:
-        title_to_idx: Dictionary mapping titles to matrix indices
-        query_book: Book title to search for
-        threshold: Minimum fuzzy match score (0-100)
-        verbose: Print matching results
+        title_to_idx: Dictionary mapping titles to matrix indices.
+        query_book: Book title to search for.
+        threshold: Minimum fuzzy match score (0-100).
+        verbose: Print matching results.
 
     Returns:
-        int or None: Matrix index of best match, or None if no match
+        Matrix index of the best match, or ``None`` if nothing clears
+        ``threshold``.
     """
-    matches = []
-
-    for title, idx in title_to_idx.items():
-        # Use partial_ratio for better partial string matching
-        # This handles cases like "Harry Potter" matching "Harry Potter and the Sorcerer's Stone"
-        ratio = fuzz.partial_ratio(title.lower(), query_book.lower())
-        if ratio >= threshold:
-            matches.append((title, idx, ratio))
-
-    matches.sort(key=lambda x: x[2], reverse=True)
-
+    matches = fuzzy_title_matches(title_to_idx, query_book, threshold=threshold)
     if not matches:
         if verbose:
             print(f"No match found for '{query_book}' (threshold={threshold})")
         return None
-
     if verbose:
         print(f"Found {len(matches)} matches:")
-        for title, idx, ratio in matches[:5]:  # Show top 5
+        for title, _idx, ratio in matches[:5]:
             print(f"  {ratio}% - {title}")
-
-    return matches[0][1]  # Return index of best match
+    return matches[0][1]
 
 
 class SparseKnnRecommender:

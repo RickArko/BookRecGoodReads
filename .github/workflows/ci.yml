@@ -40,5 +40,8 @@ jobs:
       - name: Check formatting with black
         run: uv run black --check .
 
+      - name: Type-check with mypy
+        run: uv run mypy
+
       - name: Run pytest
         run: uv run pytest -ra

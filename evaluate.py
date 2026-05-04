@@ -31,6 +31,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -122,7 +123,9 @@ def hybrid_recs_from_candidates(
     return out
 
 
-def query_with_dists(knn: NearestNeighbors, queries: csr_matrix, n_neighbors: int, seeds: list[int]):
+def query_with_dists(
+    knn: NearestNeighbors, queries: csr_matrix, n_neighbors: int, seeds: list[int]
+) -> tuple[list[list[int]], list[list[float]]]:
     distances, indices = knn.kneighbors(queries, n_neighbors=n_neighbors + 1)
     rec_lists: list[list[int]] = []
     dist_lists: list[list[float]] = []
@@ -147,7 +150,7 @@ def query_content_with_dists(
     samples: list[HoldoutSample],
     collab_to_content: dict[int, int],
     n_neighbors: int,
-):
+) -> tuple[list[list[int]], list[list[float]]]:
     valid_idxs: list[int] = []
     valid_seed_collab: list[int] = []
     seed_content_map: list[int | None] = []
@@ -203,7 +206,7 @@ def score_runs(
     k_values: list[int],
     n_total_books: int,
     diversity_features: csr_matrix,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     metric_buckets: dict[str, list[float]] = {}
     diversities: list[float] = []
     for recs, sample in zip(rec_lists, samples):
@@ -214,7 +217,7 @@ def score_runs(
             metric_buckets.setdefault(f"ndcg@{k}", []).append(ndcg_at_k(recs, sample.positives, k))
             metric_buckets.setdefault(f"map@{k}", []).append(average_precision_at_k(recs, sample.positives, k))
             metric_buckets.setdefault(f"hit_rate@{k}", []).append(hit_rate_at_k(recs, sample.positives, k))
-    summary = {key: float(np.mean(values)) for key, values in metric_buckets.items()}
+    summary: dict[str, Any] = {key: float(np.mean(values)) for key, values in metric_buckets.items()}
     summary["catalog_coverage"] = catalog_coverage(rec_lists, n_total_books)
     summary["intra_list_diversity"] = float(np.mean(diversities)) if diversities else 0.0
     summary["mean_n_positives"] = float(np.mean([s.n_positives for s in samples]))
@@ -230,7 +233,7 @@ def score_runs(
 
 def render_report(
     *,
-    results: list[dict[str, float]],
+    results: list[dict[str, Any]],
     n_users_target: int,
     n_users_actual: int,
     min_interactions: int,
@@ -388,7 +391,7 @@ def run_eval(
 
     diversity_features = assets.content_features  # rows align with collab indices
 
-    results: list[dict[str, float]] = []
+    results: list[dict[str, Any]] = []
 
     t = time.time()
     collab_top = [recs[:max_k] for recs in collab_recs_full]

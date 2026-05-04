@@ -13,9 +13,10 @@ The hybrid approach provides:
 import time
 
 import polars as pl
-from fuzzywuzzy import fuzz
 from scipy.sparse import load_npz
 from sklearn.neighbors import NearestNeighbors
+
+from src.matching import fuzzy_title_matches
 
 
 class HybridRecommender:
@@ -118,22 +119,19 @@ class HybridRecommender:
     def fuzzy_search(self, query, threshold=60, max_results=5):
         """Find books using fuzzy string matching.
 
+        Backed by the shared :func:`src.matching.fuzzy_title_matches` helper so
+        the hybrid app and the sparse-KNN CLI use identical matching semantics
+        (substring-friendly via ``partial_ratio``).
+
         Args:
-            query: Search query
-            threshold: Minimum fuzzy match score
-            max_results: Maximum number of results
+            query: Search query.
+            threshold: Minimum fuzzy match score (0-100).
+            max_results: Maximum number of results to return.
 
         Returns:
-            list: [(title, idx, score), ...]
+            ``[(title, idx, score), ...]`` sorted by descending score.
         """
-        matches = []
-        for title, idx in self.title_to_idx.items():
-            score = fuzz.ratio(title.lower(), query.lower())
-            if score >= threshold:
-                matches.append((title, idx, score))
-
-        matches.sort(key=lambda x: x[2], reverse=True)
-        return matches[:max_results]
+        return fuzzy_title_matches(self.title_to_idx, query, threshold=threshold, max_results=max_results)
 
     def recommend_collaborative(self, book_idx, n_recommendations=5):
         """Get recommendations using collaborative filtering only.

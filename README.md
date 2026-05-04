@@ -151,13 +151,19 @@ to explore the cost / precision frontier.
 ## Development
 
 ```bash
-# Run the full test suite (currently 68 tests)
+# Run the full test suite (currently 77 tests)
 uv run pytest
 
-# Lint and format checks
+# Lint, format, and type checks
 uv run ruff check .
 uv run black --check .
+uv run mypy
 ```
+
+`mypy` is configured in `pyproject.toml` to strict-check the modules
+that ship with full type annotations (`src/evaluation.py`,
+`src/matching.py`, `evaluate.py`). The rest of the tree is excluded for
+now and is being brought up to standard incrementally.
 
 CI runs the same matrix on every push and pull request — see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
