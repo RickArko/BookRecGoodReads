@@ -48,7 +48,7 @@ def active_filter_optimized(
     book_counts = interactions_lf.group_by("book_id").agg(pl.len().alias("count"))
 
     active_users = user_counts.filter(pl.col("count") >= min_reads).select("user_id")
-    popular_books = book_counts.filter(pl.col("count") > -min_reads).select("book_id")
+    popular_books = book_counts.filter(pl.col("count") >= min_reads).select("book_id")
 
     # Combine filtering in one operation
     filtered = interactions_lf.join(active_users, on="user_id", how="inner").join(
